@@ -29,15 +29,19 @@ type CostEntry struct {
 
 type CostOverview = map[CostType]CostWithEstimation
 
+type CostOverviewEntries = map[CostType]CostEntry
+
 type CostType = string
 
 const CostTypeAnalytics CostType = "analytics"
 
-type CostPods = map[string]CostWithEstimation
-
 type CostContainers = map[string]CostWithEstimation
 
+type CostContainerEntries = map[string]CostEntry
+
 type CostControllers = map[string]CostWithEstimation
+
+type CostControllerEntries = map[string]CostEntry
 
 type CostWithChildren struct {
 	CostWithEstimation

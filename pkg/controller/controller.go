@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/configuration"
@@ -28,7 +29,7 @@ import (
 var prefetchFn = []func(c *Controller) error{}
 
 type cacheEntry struct {
-	allocation *opencost.AllocationResponse
+	allocation opencost.AllocationResponse
 	enteredAt  time.Time
 }
 
@@ -36,27 +37,32 @@ type Controller struct {
 	opencost *opencost.Client
 	config   configuration.Config
 	cache    map[string]cacheEntry
+	cacheMux sync.Mutex
 }
 
 func NewController(ctx context.Context, conf configuration.Config, fatal func(err error)) (*Controller, error) {
 	opencostClient, err := opencost.NewClient(conf)
-	controller := &Controller{opencost: opencostClient, config: conf, cache: map[string]cacheEntry{}}
+	controller := &Controller{opencost: opencostClient, config: conf, cache: map[string]cacheEntry{}, cacheMux: sync.Mutex{}}
 	if err != nil {
 		return nil, err
 	}
 	if conf.Prefetch {
 		prefetch := func() {
 			log.Println("Prefetching...")
+			wg := sync.WaitGroup{}
+			wg.Add(len(prefetchFn))
 			for _, fn := range prefetchFn {
-				if ctx.Err() != nil {
-					return
-				}
-				err := fn(controller)
-				if err != nil {
-					fatal(err)
-					return
-				}
+				fn := fn
+				go func() {
+					err := fn(controller)
+					if err != nil {
+						fatal(err)
+						return
+					}
+					wg.Done()
+				}()
 			}
+			wg.Wait()
 			log.Println("Prefetch done!")
 		}
 		go func() {
@@ -65,7 +71,7 @@ func NewController(ctx context.Context, conf configuration.Config, fatal func(er
 				select {
 				case <-ctx.Done():
 					return
-				case <-time.After(time.Minute):
+				case <-time.After(5 * time.Minute):
 					prefetch()
 				}
 			}
