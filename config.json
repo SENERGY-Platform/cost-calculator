@@ -1,0 +1,8 @@
+{
+  "api_port": "8080",
+  "opencost_url": "http://opencost.opencost:9003",
+  "namespace_analytics": "analytics-pipelines",
+  "prefetch": true,
+  "debug": true,
+  "dev_overwrite_user_id": ""
+}
