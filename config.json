@@ -2,6 +2,7 @@
   "api_port": "8080",
   "opencost_url": "http://opencost.opencost:9003",
   "namespace_analytics": "analytics-pipelines",
+  "analytics_parsing_url":"https://api.senergy.infai.org/analytics/flow-parser/v2",
   "prefetch": true,
   "debug": true,
   "dev_overwrite_user_id": ""

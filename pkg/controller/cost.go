@@ -100,7 +100,9 @@ func init() {
 }
 
 func (c *Controller) GetCostOverview(userid string) (res model.CostOverview, err error) {
+	c.cacheMux.Lock()
 	cached, ok := c.cache[allocationOverviewMonthKey]
+	c.cacheMux.Unlock()
 	var allocation opencost.AllocationResponse
 	if ok && cached.enteredAt.Add(cacheValid).After(time.Now()) {
 		allocation = cached.allocation
@@ -155,7 +157,9 @@ func (c *Controller) GetCostContainers(userid string, costType model.CostType, c
 	default:
 		return nil, errors.New("unknown costType")
 	}
+	c.cacheMux.Lock()
 	cached, ok := c.cache[allocationContainerMonthKey]
+	c.cacheMux.Unlock()
 	var allocation opencost.AllocationResponse
 	if ok && cached.enteredAt.Add(cacheValid).After(time.Now()) {
 		allocation = cached.allocation
@@ -209,7 +213,9 @@ func (c *Controller) GetCostControllers(userid string, costType model.CostType) 
 	default:
 		return nil, errors.New("unknown costType")
 	}
+	c.cacheMux.Lock()
 	cached, ok := c.cache[allocationControllerMonthKey]
+	c.cacheMux.Unlock()
 	var allocation opencost.AllocationResponse
 	if ok && cached.enteredAt.Add(cacheValid).After(time.Now()) {
 		allocation = cached.allocation

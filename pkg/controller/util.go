@@ -19,6 +19,7 @@ package controller
 import (
 	"errors"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
@@ -47,4 +48,24 @@ func predict(base model.CostEntry, l24h model.CostEntry) model.CostEntry {
 		Ram:     base.Ram + (remainingMinutes * (l24h.Ram / minutesInDay)),
 		Storage: base.Storage + (remainingMinutes * (l24h.Storage / minutesInDay)),
 	}
+}
+
+func calcStats(data []float64) (min, max, mean, median float64) {
+	if len(data) == 0 {
+		return 0, 0, 0, 0
+	}
+	slices.Sort(data)
+	min = data[0]
+	max = data[len(data)-1]
+	if len(data)%2 == 0 {
+		median = (data[len(data)/2] + data[len(data)/2-1]) / 2
+	} else {
+		median = data[len(data)/2]
+	}
+	var s float64 = 0
+	for _, f := range data {
+		s += f
+	}
+	mean = s / float64(len(data))
+	return
 }

@@ -22,7 +22,9 @@ import (
 	"sync"
 	"time"
 
+	parsing_api "github.com/SENERGY-Platform/analytics-flow-engine/pkg/parsing-api"
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/configuration"
+	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/opencost"
 )
 
@@ -33,16 +35,37 @@ type cacheEntry struct {
 	enteredAt  time.Time
 }
 
+type operatorCacheEntry struct {
+	estimation model.Estimation
+	enteredAt  time.Time
+}
+
+type flowCacheEntry struct {
+	flow      parsing_api.Pipeline
+	enteredAt time.Time
+}
+
 type Controller struct {
-	opencost *opencost.Client
-	config   configuration.Config
-	cache    map[string]cacheEntry
-	cacheMux sync.Mutex
+	opencost      *opencost.Client
+	config        configuration.Config
+	cache         map[string]cacheEntry
+	cacheMux      sync.Mutex
+	parsingClient *parsing_api.ParsingApi
+
+	operatorCache    map[string]operatorCacheEntry
+	operatorCacheMux sync.Mutex
+
+	flowCache    map[string]flowCacheEntry
+	flowCacheMux sync.Mutex
 }
 
 func NewController(ctx context.Context, conf configuration.Config, fatal func(err error)) (*Controller, error) {
 	opencostClient, err := opencost.NewClient(conf)
-	controller := &Controller{opencost: opencostClient, config: conf, cache: map[string]cacheEntry{}, cacheMux: sync.Mutex{}}
+	controller := &Controller{opencost: opencostClient, config: conf, cache: map[string]cacheEntry{}, cacheMux: sync.Mutex{},
+		parsingClient: parsing_api.NewParsingApi(conf.AnalyticsParsingUrl),
+		operatorCache: map[string]operatorCacheEntry{}, operatorCacheMux: sync.Mutex{},
+		flowCache: map[string]flowCacheEntry{}, flowCacheMux: sync.Mutex{},
+	}
 	if err != nil {
 		return nil, err
 	}

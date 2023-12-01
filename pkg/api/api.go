@@ -71,3 +71,7 @@ func getUserId(config configuration.Config, request *http.Request) (string, erro
 	}
 	return request.Header.Get("X-UserId"), nil
 }
+
+func getToken(request *http.Request) (string, error) {
+	return request.Header.Get("Authorization"), nil
+}

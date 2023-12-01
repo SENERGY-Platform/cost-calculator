@@ -19,6 +19,7 @@ package controller
 import (
 	"errors"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 
@@ -137,11 +138,25 @@ func (c *Controller) getCostContainers24h(userid string, costType model.CostType
 	var prefix string
 	switch costType {
 	case model.CostTypeAnalytics:
-		prefix = userid + "/" + c.config.NamespaceAnalytics + "/" + controllerName + "/"
+		if len(userid) > 0 {
+			prefix = userid
+		} else {
+			prefix = ".*"
+		}
+		prefix += "/" + c.config.NamespaceAnalytics + "/"
+		if len(controllerName) > 0 {
+			prefix += controllerName + "/"
+		}
 	default:
 		return nil, errors.New("unknown costType")
 	}
+	rgx, err := regexp.Compile(prefix)
+	if err != nil {
+		return nil, err
+	}
+	c.cacheMux.Lock()
 	cached, ok := c.cache[allocationContainer24hKey]
+	c.cacheMux.Unlock()
 	var allocation opencost.AllocationResponse
 	if ok && cached.enteredAt.Add(cacheValid).After(time.Now()) {
 		allocation = cached.allocation
@@ -162,8 +177,8 @@ func (c *Controller) getCostContainers24h(userid string, costType model.CostType
 	}
 	res = model.CostContainerEntries{}
 	for key, allo := range allocation.Data[0] {
-		if strings.HasPrefix(key, prefix) {
-			res[strings.TrimPrefix(key, prefix)] = model.CostEntry{
+		if rgx.MatchString(key) {
+			res[rgx.ReplaceAllString(key, "")] = model.CostEntry{
 				Cpu:     allo.CpuCost,
 				Ram:     allo.RamCost,
 				Storage: allo.PvCost,
@@ -181,7 +196,9 @@ func (c *Controller) getCostControllers24h(userid string, costType model.CostTyp
 	default:
 		return nil, errors.New("unknown costType")
 	}
+	c.cacheMux.Lock()
 	cached, ok := c.cache[allocationController24hKey]
+	c.cacheMux.Unlock()
 	var allocation opencost.AllocationResponse
 	if ok && cached.enteredAt.Add(cacheValid).After(time.Now()) {
 		allocation = cached.allocation

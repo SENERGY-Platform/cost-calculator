@@ -28,9 +28,10 @@ import (
 )
 
 type ConfigStruct struct {
-	ApiPort     string `json:"api_port"`
-	OpencostUrl string `json:"opencost_url"`
-	Prefetch    bool   `json:"prefetch"`
+	ApiPort             string `json:"api_port"`
+	OpencostUrl         string `json:"opencost_url"`
+	Prefetch            bool   `json:"prefetch"`
+	AnalyticsParsingUrl string `json:"analytics_parsing_url"`
 
 	NamespaceAnalytics string `json:"namespace_analytics"`
 
