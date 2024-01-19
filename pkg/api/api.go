@@ -18,10 +18,13 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"reflect"
 	"runtime"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -68,6 +71,14 @@ func getUserId(config configuration.Config, request *http.Request) (string, erro
 	if config.DevOverwriteUserId != "" {
 		log.Println("WARNING: Overwriting user id, THIS MUST NOT BE ENABLED IN PRODUCTIVE DEPLOYMENT!")
 		return config.DevOverwriteUserId, nil
+	}
+	forUser := request.URL.Query().Get("for_user")
+	if forUser != "" {
+		roles := strings.Split(request.Header.Get("X-User-Roles"), ",")
+		if !slices.Contains[[]string](roles, "admin") {
+			return "", errors.New("forbidden")
+		}
+		return forUser, nil
 	}
 	return request.Header.Get("X-UserId"), nil
 }
