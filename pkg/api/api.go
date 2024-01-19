@@ -74,7 +74,7 @@ func getUserId(config configuration.Config, request *http.Request) (string, erro
 	}
 	forUser := request.URL.Query().Get("for_user")
 	if forUser != "" {
-		roles := strings.Split(request.Header.Get("X-User-Roles"), ",")
+		roles := strings.Split(request.Header.Get("X-User-Roles"), ", ")
 		if !slices.Contains[[]string](roles, "admin") {
 			return "", errors.New("forbidden")
 		}
