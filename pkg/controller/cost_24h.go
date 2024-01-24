@@ -129,6 +129,12 @@ func (c *Controller) getCostOverview24h(userid string) (res model.CostOverviewEn
 				Ram:     allo.RamCost,
 				Storage: allo.PvCost,
 			}
+		} else if key == userid+"/"+c.config.NamespaceImports {
+			res[model.CostTypeImports] = model.CostEntry{
+				Cpu:     allo.CpuCost,
+				Ram:     allo.RamCost,
+				Storage: allo.PvCost,
+			}
 		}
 	}
 	return res, nil
@@ -144,6 +150,16 @@ func (c *Controller) getCostContainers24h(userid string, costType model.CostType
 			prefix = ".*"
 		}
 		prefix += "/" + c.config.NamespaceAnalytics + "/"
+		if len(controllerName) > 0 {
+			prefix += controllerName + "/"
+		}
+	case model.CostTypeImports:
+		if len(userid) > 0 {
+			prefix = userid
+		} else {
+			prefix = ".*"
+		}
+		prefix += "/" + c.config.NamespaceImports + "/"
 		if len(controllerName) > 0 {
 			prefix += controllerName + "/"
 		}
@@ -193,6 +209,8 @@ func (c *Controller) getCostControllers24h(userid string, costType model.CostTyp
 	switch costType {
 	case model.CostTypeAnalytics:
 		prefix = userid + "/" + c.config.NamespaceAnalytics + "/"
+	case model.CostTypeImports:
+		prefix = userid + "/" + c.config.NamespaceImports + "/"
 	default:
 		return nil, errors.New("unknown costType")
 	}

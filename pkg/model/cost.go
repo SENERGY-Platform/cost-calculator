@@ -34,6 +34,7 @@ type CostOverviewEntries = map[CostType]CostEntry
 type CostType = string
 
 const CostTypeAnalytics CostType = "analytics"
+const CostTypeImports CostType = "imports"
 
 type CostContainers = map[string]CostWithEstimation
 

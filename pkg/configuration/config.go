@@ -34,6 +34,7 @@ type ConfigStruct struct {
 	AnalyticsParsingUrl string `json:"analytics_parsing_url"`
 
 	NamespaceAnalytics string `json:"namespace_analytics"`
+	NamespaceImports   string `json:"namespace_imports"`
 
 	Debug              bool   `json:"debug"`
 	DevOverwriteUserId string `json:"dev_overwrite_user_id"`

@@ -144,6 +144,21 @@ func (c *Controller) GetCostOverview(userid string) (res model.CostOverview, err
 				Month:           month,
 				EstimationMonth: estimationMonth,
 			}
+		} else if key == userid+"/"+c.config.NamespaceImports {
+			month := model.CostEntry{
+				Cpu:     allo.CpuCost,
+				Ram:     allo.RamCost,
+				Storage: allo.PvCost,
+			}
+			l24hEntry, ok := l24hEntries[model.CostTypeImports]
+			if !ok {
+				l24hEntry = model.CostEntry{}
+			}
+			estimationMonth := predict(month, l24hEntry)
+			res[model.CostTypeImports] = model.CostWithEstimation{
+				Month:           month,
+				EstimationMonth: estimationMonth,
+			}
 		}
 	}
 	return res, nil
@@ -154,6 +169,8 @@ func (c *Controller) GetCostContainers(userid string, costType model.CostType, c
 	switch costType {
 	case model.CostTypeAnalytics:
 		prefix = userid + "/" + c.config.NamespaceAnalytics + "/" + controllerName + "/"
+	case model.CostTypeImports:
+		prefix = userid + "/" + c.config.NamespaceImports + "/" + controllerName + "/"
 	default:
 		return nil, errors.New("unknown costType")
 	}
@@ -210,6 +227,8 @@ func (c *Controller) GetCostControllers(userid string, costType model.CostType) 
 	switch costType {
 	case model.CostTypeAnalytics:
 		prefix = userid + "/" + c.config.NamespaceAnalytics + "/"
+	case model.CostTypeImports:
+		prefix = userid + "/" + c.config.NamespaceImports + "/"
 	default:
 		return nil, errors.New("unknown costType")
 	}
