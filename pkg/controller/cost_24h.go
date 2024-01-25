@@ -18,7 +18,6 @@ package controller
 
 import (
 	"errors"
-	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -32,72 +31,12 @@ const allocationContainer24hKey = "allocation_container_24h"
 const allocationController24hKey = "allocation_controller_24h"
 
 func init() {
-	prefetchFn = append(prefetchFn, func(c *Controller) error {
-		allocation, err := c.opencost.Allocation(&opencost.AllocationOptions{
-			Window:    "24h",
-			Aggregate: "label:user,namespace",
-		})
-		if err != nil {
-			log.Println("WARNING: Could not prefetch cost overview: " + err.Error())
-			return err
-		}
-		err = validateAllocation(&allocation)
-		if err != nil {
-			log.Println("WARNING: Could not prefetch cost overview, invalid allocation response: " + err.Error())
-			return err
-		}
-		c.cacheMux.Lock()
-		defer c.cacheMux.Unlock()
-		c.cache[allocationOverview24hKey] = cacheEntry{
-			allocation: allocation,
-			enteredAt:  time.Now(),
-		}
-		return nil
-	})
-	prefetchFn = append(prefetchFn, func(c *Controller) error {
-		allocation, err := c.opencost.Allocation(&opencost.AllocationOptions{
-			Window:    "24h",
-			Aggregate: "label:user,namespace,controller",
-		})
-		if err != nil {
-			log.Println("WARNING: Could not prefetch cost pods: " + err.Error())
-			return err
-		}
-		err = validateAllocation(&allocation)
-		if err != nil {
-			log.Println("WARNING: Could not prefetch cost pods, invalid allocation response: " + err.Error())
-			return err
-		}
-		c.cacheMux.Lock()
-		defer c.cacheMux.Unlock()
-		c.cache[allocationController24hKey] = cacheEntry{
-			allocation: allocation,
-			enteredAt:  time.Now(),
-		}
-		return nil
-	})
-	prefetchFn = append(prefetchFn, func(c *Controller) error {
-		allocation, err := c.opencost.Allocation(&opencost.AllocationOptions{
-			Window:    "24h",
-			Aggregate: "label:user,namespace,controller,container",
-		})
-		if err != nil {
-			log.Println("WARNING: Could not prefetch cost containers: " + err.Error())
-			return err
-		}
-		err = validateAllocation(&allocation)
-		if err != nil {
-			log.Println("WARNING: Could not prefetch cost containers, invalid allocation response: " + err.Error())
-			return err
-		}
-		c.cacheMux.Lock()
-		defer c.cacheMux.Unlock()
-		c.cache[allocationContainer24hKey] = cacheEntry{
-			allocation: allocation,
-			enteredAt:  time.Now(),
-		}
-		return nil
-	})
+	prefetchFn = append(prefetchFn, getPrefetchFunction("24h", "label:user,namespace", allocationOverview24hKey))
+	prefetchFn = append(prefetchFn, getPrefetchFunction("24h", "label:user,namespace,controller", allocationController24hKey))
+	aggregate := "label:user,namespace,label:importTypeId,container"
+	prefetchFn = append(prefetchFn, getPrefetchFunction("24h", aggregate, allocationContainer24hKey+aggregate))
+	aggregate = "label:user,namespace,controller,container"
+	prefetchFn = append(prefetchFn, getPrefetchFunction("24h", aggregate, allocationContainer24hKey+aggregate))
 }
 
 func (c *Controller) getCostOverview24h(userid string) (res model.CostOverviewEntries, err error) {
@@ -141,6 +80,10 @@ func (c *Controller) getCostOverview24h(userid string) (res model.CostOverviewEn
 }
 
 func (c *Controller) getCostContainers24h(userid string, costType model.CostType, controllerName string) (res model.CostContainerEntries, err error) {
+	return c.getCostContainers24hWithAggregate(userid, costType, controllerName, "label:user,namespace,controller,container")
+}
+
+func (c *Controller) getCostContainers24hWithAggregate(userid string, costType model.CostType, controllerName, aggregate string) (res model.CostContainerEntries, err error) {
 	var prefix string
 	switch costType {
 	case model.CostTypeAnalytics:
@@ -171,7 +114,7 @@ func (c *Controller) getCostContainers24h(userid string, costType model.CostType
 		return nil, err
 	}
 	c.cacheMux.Lock()
-	cached, ok := c.cache[allocationContainer24hKey]
+	cached, ok := c.cache[allocationContainer24hKey+aggregate]
 	c.cacheMux.Unlock()
 	var allocation opencost.AllocationResponse
 	if ok && cached.enteredAt.Add(cacheValid).After(time.Now()) {
@@ -181,7 +124,7 @@ func (c *Controller) getCostContainers24h(userid string, costType model.CostType
 	} else {
 		allocation, err := c.opencost.Allocation(&opencost.AllocationOptions{
 			Window:    "24h",
-			Aggregate: "label:user,namespace,controller,container",
+			Aggregate: aggregate,
 		})
 		if err != nil {
 			return nil, err

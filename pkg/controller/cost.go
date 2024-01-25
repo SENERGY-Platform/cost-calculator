@@ -18,7 +18,6 @@ package controller
 
 import (
 	"errors"
-	"log"
 	"strings"
 	"time"
 
@@ -31,72 +30,9 @@ const allocationContainerMonthKey = "allocation_container_month"
 const allocationControllerMonthKey = "allocation_controller_month"
 
 func init() {
-	prefetchFn = append(prefetchFn, func(c *Controller) error {
-		allocation, err := c.opencost.Allocation(&opencost.AllocationOptions{
-			Window:    "month",
-			Aggregate: "label:user,namespace",
-		})
-		if err != nil {
-			log.Println("WARNING: Could not prefetch cost overview: " + err.Error())
-			return err
-		}
-		err = validateAllocation(&allocation)
-		if err != nil {
-			log.Println("WARNING: Could not prefetch cost overview, invalid allocation response: " + err.Error())
-			return err
-		}
-		c.cacheMux.Lock()
-		defer c.cacheMux.Unlock()
-		c.cache[allocationOverviewMonthKey] = cacheEntry{
-			allocation: allocation,
-			enteredAt:  time.Now(),
-		}
-		return nil
-	})
-	prefetchFn = append(prefetchFn, func(c *Controller) error {
-		allocation, err := c.opencost.Allocation(&opencost.AllocationOptions{
-			Window:    "month",
-			Aggregate: "label:user,namespace,controller",
-		})
-		if err != nil {
-			log.Println("WARNING: Could not prefetch cost pods: " + err.Error())
-			return err
-		}
-		err = validateAllocation(&allocation)
-		if err != nil {
-			log.Println("WARNING: Could not prefetch cost pods, invalid allocation response: " + err.Error())
-			return err
-		}
-		c.cacheMux.Lock()
-		defer c.cacheMux.Unlock()
-		c.cache[allocationControllerMonthKey] = cacheEntry{
-			allocation: allocation,
-			enteredAt:  time.Now(),
-		}
-		return nil
-	})
-	prefetchFn = append(prefetchFn, func(c *Controller) error {
-		allocation, err := c.opencost.Allocation(&opencost.AllocationOptions{
-			Window:    "month",
-			Aggregate: "label:user,namespace,controller,container",
-		})
-		if err != nil {
-			log.Println("WARNING: Could not prefetch cost containers: " + err.Error())
-			return err
-		}
-		err = validateAllocation(&allocation)
-		if err != nil {
-			log.Println("WARNING: Could not prefetch cost containers, invalid allocation response: " + err.Error())
-			return err
-		}
-		c.cacheMux.Lock()
-		defer c.cacheMux.Unlock()
-		c.cache[allocationContainerMonthKey] = cacheEntry{
-			allocation: allocation,
-			enteredAt:  time.Now(),
-		}
-		return nil
-	})
+	prefetchFn = append(prefetchFn, getPrefetchFunction("month", "label:user,namespace", allocationOverviewMonthKey))
+	prefetchFn = append(prefetchFn, getPrefetchFunction("month", "label:user,namespace,controller", allocationControllerMonthKey))
+	prefetchFn = append(prefetchFn, getPrefetchFunction("month", "label:user,namespace,controller,container", allocationContainerMonthKey))
 }
 
 func (c *Controller) GetCostOverview(userid string) (res model.CostOverview, err error) {

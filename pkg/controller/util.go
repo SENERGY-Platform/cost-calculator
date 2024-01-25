@@ -18,6 +18,7 @@ package controller
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"slices"
 	"time"
@@ -68,4 +69,29 @@ func calcStats(data []float64) (min, max, mean, median float64) {
 	}
 	mean = s / float64(len(data))
 	return
+}
+
+func getPrefetchFunction(window, aggregate, key string) func(c *Controller) error {
+	return func(c *Controller) error {
+		allocation, err := c.opencost.Allocation(&opencost.AllocationOptions{
+			Window:    window,
+			Aggregate: aggregate,
+		})
+		if err != nil {
+			log.Println("WARNING: Could not prefetch: " + err.Error())
+			return err
+		}
+		err = validateAllocation(&allocation)
+		if err != nil {
+			log.Println("WARNING: Could not prefetch, invalid allocation response: " + err.Error())
+			return err
+		}
+		c.cacheMux.Lock()
+		defer c.cacheMux.Unlock()
+		c.cache[key] = cacheEntry{
+			allocation: allocation,
+			enteredAt:  time.Now(),
+		}
+		return nil
+	}
 }
