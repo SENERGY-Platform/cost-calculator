@@ -45,7 +45,7 @@ func (c *Controller) GetCostOverview(userid string) (res model.CostOverview, err
 	} else if c.config.Prefetch {
 		return nil, errors.New("prefetch enabled, but cache empty or outdated, try again later")
 	} else {
-		allocation, err := c.opencost.Allocation(&opencost.AllocationOptions{
+		allocation, err = c.opencost.Allocation(&opencost.AllocationOptions{
 			Window:    "month",
 			Aggregate: "label:user,namespace",
 		})
@@ -119,7 +119,7 @@ func (c *Controller) GetCostContainers(userid string, costType model.CostType, c
 	} else if c.config.Prefetch {
 		return nil, errors.New("prefetch enabled, but cache empty or outdated, try again later")
 	} else {
-		allocation, err := c.opencost.Allocation(&opencost.AllocationOptions{
+		allocation, err = c.opencost.Allocation(&opencost.AllocationOptions{
 			Window:    "month",
 			Aggregate: "label:user,namespace,controller,container",
 		})
@@ -177,7 +177,7 @@ func (c *Controller) GetCostControllers(userid string, costType model.CostType) 
 	} else if c.config.Prefetch {
 		return nil, errors.New("prefetch enabled, but cache empty or outdated, try again later")
 	} else {
-		allocation, err := c.opencost.Allocation(&opencost.AllocationOptions{
+		allocation, err = c.opencost.Allocation(&opencost.AllocationOptions{
 			Window:    "month",
 			Aggregate: "label:user,namespace,controller",
 		})
