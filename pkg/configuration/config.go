@@ -38,6 +38,17 @@ type ConfigStruct struct {
 
 	Debug              bool   `json:"debug"`
 	DevOverwriteUserId string `json:"dev_overwrite_user_id"`
+
+	PrometheusUrl                          string `json:"prometheus_url"`
+	UserProcessCostFractionQuery           string `json:"user_process_cost_fraction_query"`
+	ProcessMarshallerCostFractionQuery     string `json:"process_marshaller_cost_fraction_query"`
+	UserMarshallerCostFractionQuery        string `json:"user_marshaller_cost_fraction_query"`
+	UserProcessDefinitionCostFractionQuery string `json:"user_process_definition_cost_fraction_query"`
+
+	ProcessCostSources     []string `json:"process_cost_sources"`
+	MarshallingCostSources []string `json:"marshalling_cost_sources"`
+
+	ProcessCostSourceToInstanceIdPlaceholderForProcessDefCostFraction map[string]string `json:"process_cost_source_to_instance_id_placeholder_for_process_def_cost_fraction"`
 }
 
 type Config = *ConfigStruct

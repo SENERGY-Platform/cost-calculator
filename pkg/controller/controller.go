@@ -18,6 +18,8 @@ package controller
 
 import (
 	"context"
+	"github.com/prometheus/client_golang/api"
+	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"log"
 	"sync"
 	"time"
@@ -57,18 +59,29 @@ type Controller struct {
 
 	flowCache    map[string]flowCacheEntry
 	flowCacheMux sync.Mutex
+
+	prometheus v1.API
 }
 
 func NewController(ctx context.Context, conf configuration.Config, fatal func(err error)) (*Controller, error) {
 	opencostClient, err := opencost.NewClient(conf)
+	if err != nil {
+		return nil, err
+	}
+	prometheusClient, err := api.NewClient(api.Config{
+		Address: conf.PrometheusUrl,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	controller := &Controller{opencost: opencostClient, config: conf, cache: map[string]cacheEntry{}, cacheMux: sync.Mutex{},
 		parsingClient: parsing_api.NewParsingApi(conf.AnalyticsParsingUrl),
 		operatorCache: map[string]operatorCacheEntry{}, operatorCacheMux: sync.Mutex{},
 		flowCache: map[string]flowCacheEntry{}, flowCacheMux: sync.Mutex{},
+		prometheus: v1.NewAPI(prometheusClient),
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	if conf.Prefetch {
 		prefetch := func() {
 			log.Println("Prefetching...")

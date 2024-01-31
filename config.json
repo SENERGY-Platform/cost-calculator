@@ -6,5 +6,32 @@
   "analytics_parsing_url":"https://api.senergy.infai.org/analytics/flow-parser/v2",
   "prefetch": true,
   "debug": true,
-  "dev_overwrite_user_id": ""
+  "dev_overwrite_user_id": "",
+
+  "process_cost_sources": [
+    "__unallocated__/process-task-worker/deployment:memcached",
+    "__unallocated__/process-task-worker/deployment:optimistic-worker",
+    "__unallocated__/process-task-worker/deployment:pessimistic-worker",
+    "__unallocated__/process-engine/deployment:engine",
+    "__unallocated__/process-engine/deployment:wrapper",
+    "__unallocated__/process-engine/statefulset:engine-db",
+    "__unallocated__/process-engine/statefulset:wrapper-db"
+  ],
+
+  "marshalling_cost_sources": [
+    "__unallocated__/marshalling/deployment:converter",
+    "__unallocated__/marshalling/deployment:marshaller"
+  ],
+
+  "prometheus_url": "",
+  "user_process_cost_fraction_query": "scalar(sum(increase( external_task_worker_task_command_send_count_vec{user_id=\"$user_id\"}[$__range]))) / scalar(sum(increase( external_task_worker_task_command_send_count_vec[$__range])))",
+  "process_marshaller_cost_fraction_query": "(scalar(sum(increase(marshaller_marshalling_request_handling_duration_sum{ call_source=~\".*process-task-worker.*\"}[$__range]))) + scalar(sum(increase(marshaller_unmarshalling_request_handling_duration_sum{ call_source=~\".*process-task-worker.*\"}[$__range])))) / (scalar(sum(increase(marshaller_marshalling_request_handling_duration_sum[$__range]))) + scalar(sum(increase(marshaller_unmarshalling_request_handling_duration_sum[$__range]))))",
+  "user_marshaller_cost_fraction_query": "scalar(sum(increase( external_task_worker_task_marshalling_latency_sum{user_id=\"$user_id\"}[$__range]))) / scalar(sum(increase( external_task_worker_task_marshalling_latency_sum[$__range])))",
+  "user_process_definition_cost_fraction_query": "sum( increase(external_task_worker_task_command_send_count_vec{user_id=\"$user_id\",endpoint=\"$instance_id\"}[$__range]) ) by (process_definition_id,instance_id)",
+
+  "process_cost_source_to_instance_id_placeholder_for_process_def_cost_fraction": {
+    "__unallocated__/process-task-worker/deployment:optimistic-worker": "optimistic-worker-metrics",
+    "__unallocated__/process-task-worker/deployment:pessimistic-worker": "pessimistic-worker-metrics"
+  }
+
 }

@@ -18,46 +18,34 @@ package controller
 
 import (
 	"errors"
-	"strings"
-	"time"
-
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/opencost"
+	"strings"
 )
 
-const allocationOverviewMonthKey = "allocation_overview_month"
-const allocationContainerMonthKey = "allocation_container_month"
-const allocationControllerMonthKey = "allocation_controller_month"
-
 func init() {
-	prefetchFn = append(prefetchFn, getPrefetchFunction("month", "label:user,namespace", allocationOverviewMonthKey))
-	prefetchFn = append(prefetchFn, getPrefetchFunction("month", "label:user,namespace,controller", allocationControllerMonthKey))
-	prefetchFn = append(prefetchFn, getPrefetchFunction("month", "label:user,namespace,controller,container", allocationContainerMonthKey))
+	prefetchFn = append(prefetchFn, GetPrefetchAllocationFunction(opencost.AllocationOptions{
+		Window:    "month",
+		Aggregate: "label:user,namespace",
+	}))
+	prefetchFn = append(prefetchFn, GetPrefetchAllocationFunction(opencost.AllocationOptions{
+		Window:    "month",
+		Aggregate: "label:user,namespace,controller",
+	}))
+	prefetchFn = append(prefetchFn, GetPrefetchAllocationFunction(opencost.AllocationOptions{
+		Window:    "month",
+		Aggregate: "label:user,namespace,controller,container",
+	}))
 }
 
 func (c *Controller) GetCostOverview(userid string) (res model.CostOverview, err error) {
-	c.cacheMux.Lock()
-	cached, ok := c.cache[allocationOverviewMonthKey]
-	c.cacheMux.Unlock()
-	var allocation opencost.AllocationResponse
-	if ok && cached.enteredAt.Add(cacheValid).After(time.Now()) {
-		allocation = cached.allocation
-	} else if c.config.Prefetch {
-		return nil, errors.New("prefetch enabled, but cache empty or outdated, try again later")
-	} else {
-		allocation, err = c.opencost.Allocation(&opencost.AllocationOptions{
-			Window:    "month",
-			Aggregate: "label:user,namespace",
-		})
-		if err != nil {
-			return nil, err
-		}
-		err = validateAllocation(&allocation)
-		if err != nil {
-			return nil, err
-		}
+	allocation, err := c.GetCachedAllocation(opencost.AllocationOptions{
+		Window:    "month",
+		Aggregate: "label:user,namespace",
+	})
+	if err != nil {
+		return nil, err
 	}
-
 	l24hEntries, err := c.getCostOverview24h(userid)
 	if err != nil {
 		return nil, err
@@ -110,27 +98,15 @@ func (c *Controller) GetCostContainers(userid string, costType model.CostType, c
 	default:
 		return nil, errors.New("unknown costType")
 	}
-	c.cacheMux.Lock()
-	cached, ok := c.cache[allocationContainerMonthKey]
-	c.cacheMux.Unlock()
-	var allocation opencost.AllocationResponse
-	if ok && cached.enteredAt.Add(cacheValid).After(time.Now()) {
-		allocation = cached.allocation
-	} else if c.config.Prefetch {
-		return nil, errors.New("prefetch enabled, but cache empty or outdated, try again later")
-	} else {
-		allocation, err = c.opencost.Allocation(&opencost.AllocationOptions{
-			Window:    "month",
-			Aggregate: "label:user,namespace,controller,container",
-		})
-		if err != nil {
-			return nil, err
-		}
-		err = validateAllocation(&allocation)
-		if err != nil {
-			return nil, err
-		}
+
+	allocation, err := c.GetCachedAllocation(opencost.AllocationOptions{
+		Window:    "month",
+		Aggregate: "label:user,namespace,controller,container",
+	})
+	if err != nil {
+		return nil, err
 	}
+
 	l24hEntries, err := c.getCostContainers24h(userid, costType, controllerName)
 	if err != nil {
 		return nil, err
@@ -168,46 +144,42 @@ func (c *Controller) GetCostControllers(userid string, costType model.CostType) 
 	default:
 		return nil, errors.New("unknown costType")
 	}
-	c.cacheMux.Lock()
-	cached, ok := c.cache[allocationControllerMonthKey]
-	c.cacheMux.Unlock()
-	var allocation opencost.AllocationResponse
-	if ok && cached.enteredAt.Add(cacheValid).After(time.Now()) {
-		allocation = cached.allocation
-	} else if c.config.Prefetch {
-		return nil, errors.New("prefetch enabled, but cache empty or outdated, try again later")
-	} else {
-		allocation, err = c.opencost.Allocation(&opencost.AllocationOptions{
-			Window:    "month",
-			Aggregate: "label:user,namespace,controller",
-		})
-		if err != nil {
-			return nil, err
-		}
-		err = validateAllocation(&allocation)
-		if err != nil {
-			return nil, err
-		}
+
+	return c.GetCostControllersWithFilter(func(key string, allo opencost.AllocationEntry) (use bool, newName string) {
+		return strings.HasPrefix(key, prefix), strings.TrimPrefix(key, prefix)
+	})
+}
+
+type FilterFuncType = func(key string, allo opencost.AllocationEntry) (use bool, newName string)
+
+func (c *Controller) GetCostControllersWithFilter(filter FilterFuncType) (res model.CostControllers, err error) {
+	allocation, err := c.GetCachedAllocation(opencost.AllocationOptions{
+		Window:    "month",
+		Aggregate: "label:user,namespace,controller",
+	})
+	if err != nil {
+		return nil, err
 	}
-	l24hEntries, err := c.getCostControllers24h(userid, costType)
+
+	l24hEntries, err := c.getCostControllers24hWithFilter(filter)
 	if err != nil {
 		return nil, err
 	}
 
 	res = model.CostControllers{}
 	for key, allo := range allocation.Data[0] {
-		if strings.HasPrefix(key, prefix) {
+		if use, newName := filter(key, allo); use {
 			month := model.CostEntry{
 				Cpu:     allo.CpuCost,
 				Ram:     allo.RamCost,
 				Storage: allo.PvCost,
 			}
-			l24hEntry, ok := l24hEntries[strings.TrimPrefix(key, prefix)]
+			l24hEntry, ok := l24hEntries[newName]
 			if !ok {
 				l24hEntry = model.CostEntry{}
 			}
 			estimationMonth := predict(month, l24hEntry)
-			res[strings.TrimPrefix(key, prefix)] = model.CostWithEstimation{
+			res[newName] = model.CostWithEstimation{
 				Month:           month,
 				EstimationMonth: estimationMonth,
 			}
@@ -249,5 +221,14 @@ func (c *Controller) GetCostTree(userid string) (res model.CostTree, err error) 
 			Children:           controllerTree,
 		}
 	}
+
+	processCost, err := c.GetProcessTree(userid)
+	if err != nil {
+		return
+	}
+	for key, value := range processCost {
+		res[key] = value
+	}
+
 	return res, nil
 }
