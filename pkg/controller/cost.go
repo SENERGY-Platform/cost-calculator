@@ -224,7 +224,7 @@ func (c *Controller) GetCostTree(userid string) (res model.CostTree, err error) 
 
 	processCost, err := c.GetProcessTree(userid)
 	if err != nil {
-		return
+		return res, err
 	}
 	for key, value := range processCost {
 		res[key] = value
