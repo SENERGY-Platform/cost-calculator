@@ -33,6 +33,9 @@ func (c *Controller) GetProcessTree(userId string) (result model.CostTree, err e
 	controllers, err := c.GetCostControllersWithFilter(func(key string, allo opencost.AllocationEntry) (use bool, newName string) {
 		return slices.Contains(c.config.ProcessCostSources, key) || slices.Contains(c.config.MarshallingCostSources, key), key
 	})
+	if err != nil {
+		return result, err
+	}
 
 	processCost := model.CostWithChildren{
 		CostWithEstimation: model.CostWithEstimation{
