@@ -83,35 +83,36 @@ func NewController(ctx context.Context, conf configuration.Config, fatal func(er
 	}
 
 	if conf.Prefetch {
-		prefetch := func() {
-			log.Println("Prefetching...")
-			wg := sync.WaitGroup{}
-			wg.Add(len(prefetchFn))
-			for _, fn := range prefetchFn {
-				fn := fn
-				go func() {
-					err := fn(controller)
-					if err != nil {
-						fatal(err)
-						return
-					}
-					wg.Done()
-				}()
-			}
-			wg.Wait()
-			log.Println("Prefetch done!")
-		}
 		go func() {
-			prefetch()
+			controller.prefetch(fatal)
 			for {
 				select {
 				case <-ctx.Done():
 					return
 				case <-time.After(5 * time.Minute):
-					prefetch()
+					controller.prefetch(fatal)
 				}
 			}
 		}()
 	}
 	return controller, nil
+}
+
+func (c *Controller) prefetch(fatal func(err error)) {
+	log.Println("Prefetching...")
+	wg := sync.WaitGroup{}
+	wg.Add(len(prefetchFn))
+	for _, fn := range prefetchFn {
+		fn := fn
+		go func() {
+			err := fn(c)
+			if err != nil {
+				fatal(err)
+				return
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+	log.Println("Prefetch done!")
 }

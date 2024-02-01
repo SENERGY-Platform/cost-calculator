@@ -18,10 +18,60 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/configuration"
 	"testing"
 	"time"
 )
+
+func TestGetCostTree(t *testing.T) {
+	//t.Skip("experiment")
+	t.Log("must be manually evaluated")
+	t.Log("expects port forwarding to prometheus: kubectl port-forward -n cattle-monitoring-system service/prometheus-operated 9090:9090")
+	t.Log("expects port forwarding to opencost: kubectl port-forward -n opencost service/opencost 9003:9003")
+
+	userId := "dd69ea0d-f553-4336-80f3-7f4567f85c7b" //replace with other examples
+
+	config, err := configuration.Load("../../config.json")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	config.PrometheusUrl = "http://localhost:9090"
+	config.OpencostUrl = "http://localhost:9003"
+	config.Prefetch = false
+
+	ctrl, err := NewController(context.Background(), config, func(err error) {
+		t.Fatal(err)
+		return
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	ctrl.prefetch(func(err error) {
+		t.Error(err)
+	})
+
+	result, err := ctrl.GetCostTree(userId)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	delete(result, "analytics")
+	delete(result, "imports")
+
+	b, err := json.Marshal(result)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	t.Logf("%#v\n%v\n", result, string(b))
+
+}
 
 func TestGetUserProcessFactor(t *testing.T) {
 	t.Skip("experiment")

@@ -38,7 +38,7 @@ type Client struct {
 
 func NewClient(config configuration.Config) (*Client, error) {
 	httpClient := http.Client{
-		Timeout: 180 * time.Second,
+		Timeout: 5 * time.Minute,
 	}
 	return &Client{config: config, cache: map[string]cacheEntry{}, cacheMux: sync.Mutex{}, httpClient: httpClient}, nil
 }

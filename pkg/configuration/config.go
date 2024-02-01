@@ -44,9 +44,11 @@ type ConfigStruct struct {
 	ProcessMarshallerCostFractionQuery     string `json:"process_marshaller_cost_fraction_query"`
 	UserMarshallerCostFractionQuery        string `json:"user_marshaller_cost_fraction_query"`
 	UserProcessDefinitionCostFractionQuery string `json:"user_process_definition_cost_fraction_query"`
+	UserProcessIoCostFractionQuery         string `json:"user_process_io_cost_fraction_query"`
 
 	ProcessCostSources     []string `json:"process_cost_sources"`
 	MarshallingCostSources []string `json:"marshalling_cost_sources"`
+	ProcessIoCostSources   []string `json:"process_io_cost_sources"`
 
 	ProcessCostSourceToInstanceIdPlaceholderForProcessDefCostFraction map[string]string `json:"process_cost_source_to_instance_id_placeholder_for_process_def_cost_fraction"`
 }

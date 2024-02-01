@@ -23,6 +23,7 @@ import (
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/opencost"
 	prometheus_model "github.com/prometheus/common/model"
 	"log"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -42,6 +43,7 @@ func (c *Controller) GetProcessTree(userId string) (result model.CostTree, err e
 	}
 
 	marshallerCostTotal := model.CostWithEstimation{}
+	processIoCostTotal := model.CostWithEstimation{}
 
 	start, end := getMonthTimeRange()
 
@@ -114,6 +116,16 @@ func (c *Controller) GetProcessTree(userId string) (result model.CostTree, err e
 			marshallerCostTotal.EstimationMonth.Ram = marshallerCostTotal.EstimationMonth.Ram + value.EstimationMonth.Ram
 			marshallerCostTotal.EstimationMonth.Storage = marshallerCostTotal.EstimationMonth.Storage + value.EstimationMonth.Storage
 		}
+
+		if slices.Contains(c.config.ProcessIoCostSources, key) {
+			processIoCostTotal.Month.Cpu = processIoCostTotal.Month.Cpu + value.Month.Cpu
+			processIoCostTotal.Month.Ram = processIoCostTotal.Month.Ram + value.Month.Ram
+			processIoCostTotal.Month.Storage = processIoCostTotal.Month.Storage + value.Month.Storage
+
+			processIoCostTotal.EstimationMonth.Cpu = processIoCostTotal.EstimationMonth.Cpu + value.EstimationMonth.Cpu
+			processIoCostTotal.EstimationMonth.Ram = processIoCostTotal.EstimationMonth.Ram + value.EstimationMonth.Ram
+			processIoCostTotal.EstimationMonth.Storage = processIoCostTotal.EstimationMonth.Storage + value.EstimationMonth.Storage
+		}
 	}
 
 	processMarshallerFactor, err := c.getProcessMarshallerFactor(start, end)
@@ -157,6 +169,29 @@ func (c *Controller) GetProcessTree(userId string) (result model.CostTree, err e
 
 	processCost.Children["marshalling"] = marshallerCostUser
 
+	userProcessIoFactor, err := c.getUserProcessIoFactor(userId, start, end)
+	if err != nil {
+		return result, err
+	}
+
+	processIoCostUser := model.CostWithChildren{
+		CostWithEstimation: model.CostWithEstimation{
+			Month: model.CostEntry{
+				Cpu:     processIoCostTotal.Month.Cpu * userProcessIoFactor,
+				Ram:     processIoCostTotal.Month.Ram * userProcessIoFactor,
+				Storage: processIoCostTotal.Month.Storage * userProcessIoFactor,
+			},
+			EstimationMonth: model.CostEntry{
+				Cpu:     processIoCostTotal.EstimationMonth.Cpu * userProcessIoFactor,
+				Ram:     processIoCostTotal.EstimationMonth.Ram * userProcessIoFactor,
+				Storage: processIoCostTotal.EstimationMonth.Storage * userProcessIoFactor,
+			},
+		},
+		Children: map[string]model.CostWithChildren{},
+	}
+
+	processCost.Children["process-io"] = processIoCostUser
+
 	result = map[string]model.CostWithChildren{"process": processCost}
 	return result, nil
 }
@@ -178,6 +213,10 @@ func (c *Controller) getProcessMarshallerFactor(start time.Time, end time.Time) 
 
 func (c *Controller) getUserMarshallerFactor(userId string, start time.Time, end time.Time) (float64, error) {
 	return c.getValueFromPrometheus(c.config.UserMarshallerCostFractionQuery, userId, start, end)
+}
+
+func (c *Controller) getUserProcessIoFactor(userId string, start time.Time, end time.Time) (float64, error) {
+	return c.getValueFromPrometheus(c.config.UserProcessIoCostFractionQuery, userId, start, end)
 }
 
 func (c *Controller) getProcessDefinitionFactors(processCostSource string, userId string, start time.Time, end time.Time) (map[string]float64, error) {
@@ -221,7 +260,7 @@ func (c *Controller) getValueFromPrometheus(query string, userId string, start t
 	if !ok {
 		return 1, fmt.Errorf("unexpected prometheus response %#v", resp)
 	}
-	return float64(value.Value), nil
+	return sampleToFloat(value.Value), nil
 }
 
 func (c *Controller) getValueMapFromPrometheus(query string, userId string, start time.Time, end time.Time) (map[string]float64, error) {
@@ -247,7 +286,15 @@ func (c *Controller) getValueMapFromPrometheus(query string, userId string, star
 		for _, metricLabel := range element.Metric {
 			label = string(metricLabel)
 		}
-		result[label] = float64(element.Value)
+		result[label] = sampleToFloat(element.Value)
 	}
 	return result, nil
+}
+
+func sampleToFloat(value prometheus_model.SampleValue) float64 {
+	temp := float64(value)
+	if math.IsNaN(temp) {
+		return 0
+	}
+	return temp
 }
