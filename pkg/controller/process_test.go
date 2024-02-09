@@ -25,7 +25,7 @@ import (
 )
 
 func TestGetCostTree(t *testing.T) {
-	//t.Skip("experiment")
+	t.Skip("experiment")
 	t.Log("must be manually evaluated")
 	t.Log("expects port forwarding to prometheus: kubectl port-forward -n cattle-monitoring-system service/prometheus-operated 9090:9090")
 	t.Log("expects port forwarding to opencost: kubectl port-forward -n opencost service/opencost 9003:9003")
@@ -132,7 +132,7 @@ func TestGetProcessDefinitionFactor(t *testing.T) {
 }
 
 func TestGetProcessDefinitionFactorFactor(t *testing.T) {
-	//t.Skip("experiment")
+	t.Skip("experiment")
 	t.Log("must be manually evaluated")
 	t.Log("expects port forwarding: kubectl port-forward -n cattle-monitoring-system service/prometheus-operated 9090:9090")
 	userId := "dd69ea0d-f553-4336-80f3-7f4567f85c7b" //replace with other examples
