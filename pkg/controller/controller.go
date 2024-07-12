@@ -18,6 +18,10 @@ package controller
 
 import (
 	"context"
+	"log"
+	"sync"
+	"time"
+
 	parsing_api "github.com/SENERGY-Platform/analytics-flow-engine/pkg/parsing-api"
 	serving "github.com/SENERGY-Platform/analytics-serving/client"
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/configuration"
@@ -27,9 +31,6 @@ import (
 	timescale_wrapper "github.com/SENERGY-Platform/timescale-wrapper/pkg/client"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
-	"log"
-	"sync"
-	"time"
 )
 
 var prefetchFn = []func(c *Controller) error{}
@@ -67,6 +68,8 @@ type Controller struct {
 	permClient    permissions.Client
 	tsClient      timescale_wrapper.Client
 	servingClient *serving.Client
+
+	ready bool
 }
 
 func NewController(ctx context.Context, conf configuration.Config, fatal func(err error)) (*Controller, error) {
@@ -93,11 +96,13 @@ func NewController(ctx context.Context, conf configuration.Config, fatal func(er
 		permClient:    permClient,
 		tsClient:      tsClient,
 		servingClient: servingClient,
+		ready:         false,
 	}
 
 	if conf.Prefetch {
 		go func() {
 			controller.prefetch(fatal)
+			controller.ready = true
 			for {
 				select {
 				case <-ctx.Done():
@@ -109,6 +114,10 @@ func NewController(ctx context.Context, conf configuration.Config, fatal func(er
 		}()
 	}
 	return controller, nil
+}
+
+func (c *Controller) Ready() bool {
+	return c.ready
 }
 
 func (c *Controller) prefetch(fatal func(err error)) {

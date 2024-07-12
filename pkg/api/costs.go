@@ -104,4 +104,11 @@ func CostsEndpoint(router *httprouter.Router, config configuration.Config, contr
 		}
 	})
 
+	router.GET("/health", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
+		if !controller.Ready() {
+			http.Error(writer, "not ready", http.StatusServiceUnavailable)
+			return
+		}
+		http.NoBody.WriteTo(writer)
+	})
 }
