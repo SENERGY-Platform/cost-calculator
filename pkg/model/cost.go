@@ -22,9 +22,10 @@ type CostWithEstimation struct {
 }
 
 type CostEntry struct {
-	Cpu     float64 `json:"cpu"`
-	Ram     float64 `json:"ram"`
-	Storage float64 `json:"storage"`
+	Cpu      float64 `json:"cpu"`
+	Ram      float64 `json:"ram"`
+	Storage  float64 `json:"storage"`
+	Requests float64 `json:"requests"`
 }
 
 type CostOverview = map[CostType]CostWithEstimation

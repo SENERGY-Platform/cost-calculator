@@ -18,9 +18,11 @@ package controller
 
 import (
 	"errors"
+	"strings"
+	"sync"
+
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/opencost"
-	"strings"
 )
 
 func init() {
@@ -188,47 +190,120 @@ func (c *Controller) GetCostControllersWithFilter(filter FilterFuncType) (res mo
 	return res, nil
 }
 
-func (c *Controller) GetCostTree(userid string) (res model.CostTree, err error) {
-	overview, err := c.GetCostOverview(userid)
-	if err != nil {
-		return
-	}
+func (c *Controller) GetCostTree(userid string, token string, admin bool) (res model.CostTree, err error) {
 	res = model.CostTree{}
-	for costType, value := range overview {
-		controllers, err := c.GetCostControllers(userid, costType)
+	mux := sync.Mutex{}
+	wg := sync.WaitGroup{}
+	var superErr error
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		overview, err := c.GetCostOverview(userid)
 		if err != nil {
-			return res, err
+			superErr = err
+			return
 		}
-		controllerTree := model.CostTree{}
-		for controllerName, controllerCost := range controllers {
-			containers, err := c.GetCostContainers(userid, costType, controllerName)
-			if err != nil {
-				return res, err
-			}
-			containerTree := model.CostTree{}
-			for containerName, containerCost := range containers {
-				containerTree[containerName] = model.CostWithChildren{
-					CostWithEstimation: containerCost,
+		for costType, value := range overview {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				controllers, err := c.GetCostControllers(userid, costType)
+				if err != nil {
+					superErr = err
+					return
 				}
-			}
-			controllerTree[controllerName] = model.CostWithChildren{
-				CostWithEstimation: controllerCost,
-				Children:           containerTree,
+				controllerTree := model.CostTree{}
+				for controllerName, controllerCost := range controllers {
+					containers, err := c.GetCostContainers(userid, costType, controllerName)
+					if err != nil {
+						superErr = err
+						return
+					}
+					containerTree := model.CostTree{}
+					for containerName, containerCost := range containers {
+						containerTree[containerName] = model.CostWithChildren{
+							CostWithEstimation: containerCost,
+						}
+					}
+					controllerTree[controllerName] = model.CostWithChildren{
+						CostWithEstimation: controllerCost,
+						Children:           containerTree,
+					}
+				}
+				mux.Lock()
+				res[costType] = model.CostWithChildren{
+					CostWithEstimation: value,
+					Children:           controllerTree,
+				}
+				mux.Unlock()
+			}()
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		processCost, err := c.GetProcessTree(userid)
+		if err != nil {
+			superErr = err
+			return
+		}
+		for key, value := range processCost {
+			if value.Month.Cpu != 0 || value.Month.Ram != 0 || value.Month.Storage != 0 {
+				mux.Lock()
+				res[key] = value
+				mux.Unlock()
 			}
 		}
-		res[costType] = model.CostWithChildren{
-			CostWithEstimation: value,
-			Children:           controllerTree,
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		username, err := c.getUsername(userid)
+		if err != nil {
+			return
 		}
-	}
+		apiCallsTree, err := c.GetApiCallsTree(username)
+		if err != nil {
+			superErr = err
+			return
+		}
+		if apiCallsTree.Month.Requests != 0 {
+			res["API Calls"] = apiCallsTree
+		}
+	}()
 
-	processCost, err := c.GetProcessTree(userid)
-	if err != nil {
-		return res, err
-	}
-	for key, value := range processCost {
-		res[key] = value
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		devicesTree, err := c.GetDevicesTree(userid, token)
+		if err != nil {
+			return
+		}
+		if devicesTree.Month.Cpu != 0 || devicesTree.Month.Ram != 0 || devicesTree.Month.Storage != 0 {
+			mux.Lock()
+			res["Devices"] = devicesTree
+			mux.Unlock()
+		}
+	}()
 
-	return res, nil
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		exportsTree, err := c.GetExportsTree(userid, token, admin)
+		if err != nil {
+			superErr = err
+			return
+		}
+		if exportsTree.Month.Cpu != 0 || exportsTree.Month.Ram != 0 || exportsTree.Month.Storage != 0 {
+			mux.Lock()
+			res["Exports"] = exportsTree
+			mux.Unlock()
+		}
+	}()
+
+	wg.Wait()
+	return res, superErr
 }

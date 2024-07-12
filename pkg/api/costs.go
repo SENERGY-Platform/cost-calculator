@@ -32,7 +32,7 @@ func init() {
 
 func CostsEndpoint(router *httprouter.Router, config configuration.Config, controller *controller.Controller) {
 	router.GET("/costs", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		userId, err := getUserId(config, request)
+		userId, _, err := getUserId(config, request)
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusBadRequest)
 			return
@@ -50,7 +50,7 @@ func CostsEndpoint(router *httprouter.Router, config configuration.Config, contr
 	})
 
 	router.GET("/costs/:costType", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		userId, err := getUserId(config, request)
+		userId, _, err := getUserId(config, request)
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusBadRequest)
 			return
@@ -68,7 +68,7 @@ func CostsEndpoint(router *httprouter.Router, config configuration.Config, contr
 	})
 
 	router.GET("/costs/:costType/:controller", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		userId, err := getUserId(config, request)
+		userId, _, err := getUserId(config, request)
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusBadRequest)
 			return
@@ -86,12 +86,13 @@ func CostsEndpoint(router *httprouter.Router, config configuration.Config, contr
 	})
 
 	router.GET("/tree", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		userId, err := getUserId(config, request)
+		userId, admin, err := getUserId(config, request)
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusBadRequest)
 			return
 		}
-		overview, err := controller.GetCostTree(userId)
+		token := getToken(request)
+		overview, err := controller.GetCostTree(userId, token, admin)
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 			return

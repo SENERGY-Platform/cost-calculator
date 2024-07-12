@@ -36,8 +36,7 @@ type ConfigStruct struct {
 	NamespaceAnalytics string `json:"namespace_analytics"`
 	NamespaceImports   string `json:"namespace_imports"`
 
-	Debug              bool   `json:"debug"`
-	DevOverwriteUserId string `json:"dev_overwrite_user_id"`
+	Debug bool `json:"debug"`
 
 	PrometheusUrl                          string `json:"prometheus_url"`
 	UserProcessCostFractionQuery           string `json:"user_process_cost_fraction_query"`
@@ -49,6 +48,13 @@ type ConfigStruct struct {
 	ProcessCostSources     []string `json:"process_cost_sources"`
 	MarshallingCostSources []string `json:"marshalling_cost_sources"`
 	ProcessIoCostSources   []string `json:"process_io_cost_sources"`
+
+	PermissionsUrl       string `json:"permissions_url"`
+	PermissionsV2Url     string `json:"permissions_v2_url"`
+	PricingModelFilePath string `json:"pricing_model_file_path"`
+	TimescaleWrapperUrl  string `json:"timescale_wrapper_url"`
+	UserManagementUrl    string `json:"user_management_url"`
+	ServingUrl           string `json:"serving_url"`
 
 	ProcessCostSourceToInstanceIdPlaceholderForProcessDefCostFraction map[string]string `json:"process_cost_source_to_instance_id_placeholder_for_process_def_cost_fraction"`
 }

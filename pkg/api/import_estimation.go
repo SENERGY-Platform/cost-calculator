@@ -33,16 +33,12 @@ func init() {
 
 func ImportEstimationEndpoint(router *httprouter.Router, config configuration.Config, controller *controller.Controller) {
 	router.GET("/estimation/import/:id", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		userId, err := getUserId(config, request)
+		userId, _, err := getUserId(config, request)
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusBadRequest)
 			return
 		}
-		token, err := getToken(request)
-		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
-			return
-		}
+		token := getToken(request)
 		overview, err := controller.GetImportEstimation(token, userId, params.ByName("id"))
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
@@ -56,16 +52,12 @@ func ImportEstimationEndpoint(router *httprouter.Router, config configuration.Co
 	})
 
 	router.POST("/estimation/import", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		userId, err := getUserId(config, request)
+		userId, _, err := getUserId(config, request)
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusBadRequest)
 			return
 		}
-		token, err := getToken(request)
-		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
-			return
-		}
+		token := getToken(request)
 		flowsIds := []string{}
 		err = json.NewDecoder(request.Body).Decode(&flowsIds)
 		if err != nil {

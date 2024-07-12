@@ -6,7 +6,6 @@
   "analytics_parsing_url":"https://api.senergy.infai.org/analytics/flow-parser/v2",
   "prefetch": true,
   "debug": true,
-  "dev_overwrite_user_id": "",
 
   "process_cost_sources": [
     "__unallocated__/process-task-worker/deployment:memcached",
@@ -39,6 +38,11 @@
   "process_cost_source_to_instance_id_placeholder_for_process_def_cost_fraction": {
     "__unallocated__/process-task-worker/deployment:optimistic-worker": "optimistic-worker-metrics",
     "__unallocated__/process-task-worker/deployment:pessimistic-worker": "pessimistic-worker-metrics"
-  }
+  },
 
+  "permissions_url": "http://query.permissions:8080",
+  "pricing_model_file_path": "pricing_model.json",
+  "timescale_wrapper_url": "http://wrapper.timescale:8080",
+  "user_management_url": "http://api.user-management:8080",
+  "serving_url": "http://api.analytics-serving:8000"
 }

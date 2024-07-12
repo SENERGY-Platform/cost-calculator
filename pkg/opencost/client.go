@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/configuration"
+	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
 )
 
 type cacheEntry struct {
@@ -30,10 +31,11 @@ type cacheEntry struct {
 }
 
 type Client struct {
-	config     configuration.Config
-	cache      map[string]cacheEntry
-	cacheMux   sync.Mutex
-	httpClient http.Client
+	config       configuration.Config
+	cache        map[string]cacheEntry
+	cacheMux     sync.Mutex
+	httpClient   http.Client
+	pricingModel *model.PricingModel
 }
 
 func NewClient(config configuration.Config) (*Client, error) {

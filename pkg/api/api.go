@@ -23,14 +23,13 @@ import (
 	"net/http"
 	"reflect"
 	"runtime"
-	"slices"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/api/util"
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/configuration"
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/controller"
+	"github.com/SENERGY-Platform/service-commons/pkg/jwt"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -67,22 +66,25 @@ func Router(config configuration.Config, controller *controller.Controller) http
 	return util.NewLogger(corsHandler)
 }
 
-func getUserId(config configuration.Config, request *http.Request) (string, error) {
-	if config.DevOverwriteUserId != "" {
-		log.Println("WARNING: Overwriting user id, THIS MUST NOT BE ENABLED IN PRODUCTIVE DEPLOYMENT!")
-		return config.DevOverwriteUserId, nil
+func getUserId(config configuration.Config, request *http.Request) (string, bool, error) {
+	token, err := jwt.GetParsedToken(request)
+	if err != nil {
+		return "", false, err
 	}
+
+	admin := token.IsAdmin()
 	forUser := request.URL.Query().Get("for_user")
+
 	if forUser != "" {
-		roles := strings.Split(request.Header.Get("X-User-Roles"), ", ")
-		if !slices.Contains[[]string](roles, "admin") {
-			return "", errors.New("forbidden")
+		if !admin {
+			return "", false, errors.New("forbidden")
 		}
-		return forUser, nil
+		return forUser, admin, nil
 	}
-	return request.Header.Get("X-UserId"), nil
+
+	return token.GetUserId(), admin, nil
 }
 
-func getToken(request *http.Request) (string, error) {
-	return request.Header.Get("Authorization"), nil
+func getToken(request *http.Request) string {
+	return request.Header.Get("Authorization")
 }

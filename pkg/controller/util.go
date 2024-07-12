@@ -17,6 +17,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"slices"
@@ -67,5 +68,23 @@ func calcStats(data []float64) (min, max, mean, median float64) {
 		s += f
 	}
 	mean = s / float64(len(data))
+	return
+}
+
+func (c *Controller) getUsername(userId string) (username string, err error) {
+	if userId == "" {
+		return "", errors.New("No userId provided")
+	}
+	resp, err := http.Get(c.config.UserManagementUrl + "/user/id/" + userId + "/name")
+	if err != nil {
+		return
+	}
+	if resp.StatusCode != 200 {
+		return "", errors.New("unexpected upstream status code")
+	}
+	err = json.NewDecoder(resp.Body).Decode(&username)
+	if err != nil {
+		return
+	}
 	return
 }

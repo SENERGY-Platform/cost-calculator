@@ -19,9 +19,10 @@ package controller
 import (
 	"context"
 	"encoding/json"
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/configuration"
 	"testing"
 	"time"
+
+	"github.com/SENERGY-Platform/opencost-wrapper/pkg/configuration"
 )
 
 func TestGetCostTree(t *testing.T) {
@@ -55,14 +56,11 @@ func TestGetCostTree(t *testing.T) {
 		t.Error(err)
 	})
 
-	result, err := ctrl.GetCostTree(userId)
+	result, err := ctrl.GetProcessTree(userId)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-
-	delete(result, "analytics")
-	delete(result, "imports")
 
 	b, err := json.Marshal(result)
 	if err != nil {
