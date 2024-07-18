@@ -1,6 +1,6 @@
 module github.com/SENERGY-Platform/opencost-wrapper
 
-go 1.22
+go 1.22.0
 
 require (
 	github.com/SENERGY-Platform/analytics-flow-engine v0.0.7
