@@ -44,5 +44,6 @@
   "pricing_model_file_path": "pricing_model.json",
   "timescale_wrapper_url": "http://timescale-wrapper.timescale:8080",
   "user_management_url": "http://api.user-management:8080",
-  "serving_url": "http://api.analytics-serving:8000"
+  "serving_url": "http://api.analytics-serving:8000",
+  "serving_timescale_configured_url": "senergy/timescaledb"
 }

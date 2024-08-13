@@ -49,12 +49,13 @@ type ConfigStruct struct {
 	MarshallingCostSources []string `json:"marshalling_cost_sources"`
 	ProcessIoCostSources   []string `json:"process_io_cost_sources"`
 
-	PermissionsUrl       string `json:"permissions_url"`
-	PermissionsV2Url     string `json:"permissions_v2_url"`
-	PricingModelFilePath string `json:"pricing_model_file_path"`
-	TimescaleWrapperUrl  string `json:"timescale_wrapper_url"`
-	UserManagementUrl    string `json:"user_management_url"`
-	ServingUrl           string `json:"serving_url"`
+	PermissionsUrl                string `json:"permissions_url"`
+	PermissionsV2Url              string `json:"permissions_v2_url"`
+	PricingModelFilePath          string `json:"pricing_model_file_path"`
+	TimescaleWrapperUrl           string `json:"timescale_wrapper_url"`
+	UserManagementUrl             string `json:"user_management_url"`
+	ServingUrl                    string `json:"serving_url"`
+	ServingTimescaleConfiguredUrl string `json:"serving_timescale_configured_url"`
 
 	ProcessCostSourceToInstanceIdPlaceholderForProcessDefCostFraction map[string]string `json:"process_cost_source_to_instance_id_placeholder_for_process_def_cost_fraction"`
 }
