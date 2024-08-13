@@ -20,7 +20,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	serving "github.com/SENERGY-Platform/analytics-serving/client"
@@ -33,7 +35,7 @@ import (
 	- Export cost only considers storage cost.
 */
 
-const exportInstancePermissionsTopic = "export-instances"
+var exportTableMatch = regexp.MustCompile("userid:(.{22})_export:(.{22}).*")
 
 func (c *Controller) GetExportsTree(userId string, token string, admin bool) (result model.CostWithChildren, err error) {
 	result = model.CostWithChildren{
@@ -74,6 +76,8 @@ func (c *Controller) GetExportsTree(userId string, token string, admin bool) (re
 	hoursInMonthProgressedStr := strconv.Itoa(hoursInMonthProgressed)
 	secondsInMonthRemainingStr := strconv.Itoa(int(timeInMonthRemaining.Seconds()))
 
+	tables := []string{}
+
 	for _, instance := range instances {
 		if instance.UserId != userId || instance.ExportDatabase.Url != c.config.ServingTimescaleConfiguredUrl {
 			continue
@@ -84,62 +88,86 @@ func (c *Controller) GetExportsTree(userId string, token string, admin bool) (re
 		if err != nil {
 			return result, err
 		}
-		query := "sum(avg_over_time(timescale_table_size_bytes{table=\"userid:" + shortUserId + "_export:" + shortId + "\"}[" + hoursInMonthProgressedStr + "h]))"
-		tableSizeBytes, err := c.getSinglePrometheusValue(query)
-		if err != nil {
-			return result, err
-		}
 
-		child := model.CostWithChildren{
-			CostWithEstimation: model.CostWithEstimation{
-				Month: model.CostEntry{
-					Storage: pricingModel.Storage * tableSizeBytes * float64(hoursInMonthProgressed) / 1000000000, // cost * avg-size * hours-progressed / correction-bytes-in-gb
-				},
-			},
-		}
-
-		query = "sum(predict_linear(timescale_table_size_bytes{table=\"userid:" + shortUserId + "_export:" + shortId + "\"}[24h], " + secondsInMonthRemainingStr + "))"
-		tableSizeBytesEstimation, err := c.getSinglePrometheusValue(query)
-		if err != nil {
-			return result, err
-		}
-
-		avgFutureTableSize := (tableSizeBytesEstimation + tableSizeBytes) / 2
-		futureCost := pricingModel.Storage * avgFutureTableSize * timeInMonthRemaining.Hours() / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
-
-		child.CostWithEstimation.EstimationMonth.Storage = child.CostWithEstimation.Month.Storage + futureCost
-		result.Children[id] = child
-		result.CostWithEstimation.Month.Storage += child.Month.Storage
-		result.CostWithEstimation.EstimationMonth.Storage += child.EstimationMonth.Storage
-
+		tables = append(tables, "userid:"+shortUserId+"_export:"+shortId)
 	}
 
-	return
-}
+	tableSizeByteMap := map[string]float64{}
 
-func (c *Controller) getSinglePrometheusValue(query string) (result float64, err error) {
-	promRes, w, err := c.prometheus.Query(context.Background(), query, time.Now())
+	insertWithQuery := func(promQuery string, estimation bool) error {
+		resp, w, err := c.prometheus.Query(context.Background(), promQuery, time.Now())
+		if err != nil {
+			return err
+		}
+		if len(w) > 0 {
+			log.Printf("WARNING: prometheus warnings = %#v\n", w)
+		}
+		if resp.Type() != prometheus_model.ValVector {
+			return fmt.Errorf("unexpected prometheus response %#v", resp)
+		}
+		values, ok := resp.(prometheus_model.Vector)
+		if !ok {
+			return fmt.Errorf("unexpected prometheus response %#v", resp)
+		}
+
+		for _, element := range values {
+			table, ok := element.Metric["table"]
+			if !ok {
+				return fmt.Errorf("unexpected prometheus response element %#v", element)
+			}
+
+			matches := exportTableMatch.FindAllStringSubmatch(string(table), -1)
+			if matches == nil || len(matches[0]) != 3 {
+				return fmt.Errorf("received metric for unexpected table name %#v", table)
+			}
+
+			exportId, err := models.LongId(matches[0][2])
+			if err != nil {
+				return err
+			}
+
+			tableSizeBytes := sampleToFloat(element.Value)
+			child, ok := result.Children[string(exportId)]
+			if !ok {
+				child = model.CostWithChildren{
+					CostWithEstimation: model.CostWithEstimation{
+						Month:           model.CostEntry{},
+						EstimationMonth: model.CostEntry{},
+					},
+				}
+			}
+			if estimation {
+				tableSizeBytesEstimation := tableSizeBytes
+				tableSizeBytes, ok := tableSizeByteMap[exportId]
+				if !ok {
+					tableSizeBytes = 0
+				}
+
+				avgFutureTableSize := (tableSizeBytesEstimation + tableSizeBytes) / 2
+				futureCost := pricingModel.Storage * avgFutureTableSize * timeInMonthRemaining.Hours() / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
+				child.CostWithEstimation.EstimationMonth.Storage = child.CostWithEstimation.Month.Storage + futureCost
+			} else {
+				tableSizeByteMap[exportId] = tableSizeBytes
+				child.CostWithEstimation.Month.Storage = pricingModel.Storage * tableSizeBytes * float64(hoursInMonthProgressed) / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
+			}
+			result.Children[exportId] = child
+			result.CostWithEstimation.Month.Storage += child.Month.Storage
+			result.CostWithEstimation.EstimationMonth.Storage += child.EstimationMonth.Storage
+		}
+		return nil
+	}
+	// Costs in current month
+	promQuery := "avg_over_time(avg by (table) (timescale_table_size_bytes{table=~\"" + strings.Join(tables, "|") + "\"})[" + hoursInMonthProgressedStr + "h:])"
+	err = insertWithQuery(promQuery, false)
 	if err != nil {
 		return result, err
 	}
-	if len(w) > 0 {
-		log.Printf("WARNING: prometheus warnings = %#v\n", w)
-	}
 
-	if promRes.Type() != prometheus_model.ValVector {
-		return result, fmt.Errorf("unexpected prometheus response %#v", promRes)
+	// Estimations
+	promQuery = "predict_linear(avg by (table) (timescale_table_size_bytes{table=~\"" + strings.Join(tables, "|") + "\"})[24h:], " + secondsInMonthRemainingStr + ")"
+	err = insertWithQuery(promQuery, true)
+	if err != nil {
+		return result, err
 	}
-
-	values, ok := promRes.(prometheus_model.Vector)
-	if !ok {
-		return result, fmt.Errorf("unexpected prometheus response %#v", promRes)
-	}
-
-	if len(values) != 1 {
-		log.Printf("WARNING: empty result for prometheus query, returning 0. Query: %#v", query)
-		return 0, nil
-	}
-
-	result = sampleToFloat(values[0].Value)
 	return
 }
