@@ -28,7 +28,6 @@ import (
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/opencost"
 	permissions "github.com/SENERGY-Platform/permission-search/lib/client"
-	timescale_wrapper "github.com/SENERGY-Platform/timescale-wrapper/pkg/client"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 )
@@ -66,7 +65,6 @@ type Controller struct {
 	prometheus v1.API
 
 	permClient    permissions.Client
-	tsClient      timescale_wrapper.Client
 	servingClient *serving.Client
 
 	ready bool
@@ -85,7 +83,6 @@ func NewController(ctx context.Context, conf configuration.Config, fatal func(er
 	}
 
 	permClient := permissions.NewClient(conf.PermissionsUrl)
-	tsClient := timescale_wrapper.NewClient(conf.TimescaleWrapperUrl)
 	servingClient := serving.New(conf.ServingUrl)
 
 	controller := &Controller{opencost: opencostClient, config: conf, cache: map[string]cacheEntry{}, cacheMux: sync.Mutex{},
@@ -94,7 +91,6 @@ func NewController(ctx context.Context, conf configuration.Config, fatal func(er
 		flowCache: map[string]flowCacheEntry{}, flowCacheMux: sync.Mutex{},
 		prometheus:    v1.NewAPI(prometheusClient),
 		permClient:    permClient,
-		tsClient:      tsClient,
 		servingClient: servingClient,
 		ready:         false,
 	}

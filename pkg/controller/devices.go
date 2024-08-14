@@ -22,22 +22,24 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/SENERGY-Platform/models/go/models"
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
 	permissions "github.com/SENERGY-Platform/permission-search/lib/client"
-	timescale_wrapper "github.com/SENERGY-Platform/timescale-wrapper/pkg/client"
 	prometheus_model "github.com/prometheus/common/model"
 )
 
 var errUnexpectedReponseFormat = errors.New("unexpected response format")
+var deviceTableMatch = regexp.MustCompile("device:(.{22})_service:(.{22}).*")
+
+const deviceIdPrefix = "urn:infai:ses:device:"
 
 /*	Limitations:
 	- Device cost only considers storage cost.
-	- Storage cost is calculated as the storage used at the end of the
-	  month as if this was the storage used during the whole month.
-	  Any changes in usage over the month will be disregarded.
 */
 
 func (c *Controller) GetDevicesTree(userId string, token string) (result model.CostWithChildren, err error) {
@@ -51,7 +53,9 @@ func (c *Controller) GetDevicesTree(userId string, token string) (result model.C
 		return result, err
 	}
 
-	hoursInMonthTotal, hoursInMonthProgressed, timeInMonthRemaining := prepExtrapolate()
+	hoursInMonthProgressed, timeInMonthRemaining := getMonthTimeInfo()
+	hoursInMonthProgressedStr := strconv.Itoa(hoursInMonthProgressed)
+	secondsInMonthRemainingStr := strconv.Itoa(int(timeInMonthRemaining.Seconds()))
 
 	start, end := getMonthTimeRange()
 	nextMonth := time.Date(start.Year(), start.Month()+1, 0, 0, 0, 0, 0, time.UTC)
@@ -99,6 +103,7 @@ func (c *Controller) GetDevicesTree(userId string, token string) (result model.C
 		}
 		found = len(deviceList)
 
+		tables := []string{}
 		deviceIds := []string{}
 		deviceId := ""
 		for _, device := range deviceList {
@@ -111,73 +116,122 @@ func (c *Controller) GetDevicesTree(userId string, token string) (result model.C
 				return result, errUnexpectedReponseFormat
 			}
 			deviceIds = append(deviceIds, deviceId)
+			shortDeviceId, err := models.ShortenId(deviceId)
+			if err != nil {
+				return result, err
+			}
+			tables = append(tables, "device:"+shortDeviceId+".*")
 		}
 		after = &permissions.ListAfter{
 			Id: deviceId,
 		}
 
-		usages, _, err := c.tsClient.GetDeviceUsage(token, deviceIds)
-		if err != nil {
-			return result, err
-		}
+		tableSizeByteMap := map[string]float64{}
 
-		for _, usage := range usages {
-			child := model.CostWithChildren{
-				CostWithEstimation: model.CostWithEstimation{
-					Month: model.CostEntry{
-						Storage: pricingModel.Storage * float64(usage.Bytes) * float64(hoursInMonthProgressed) / 1000000000,
-					},
-				},
+		insertWithQuery := func(promQuery string, metricName prometheus_model.LabelName, callback func(metricValue string, value float64, child *model.CostWithChildren)) error {
+			resp, w, err := c.prometheus.Query(context.Background(), promQuery, time.Now())
+			if err != nil {
+				return err
 			}
-			child.CostWithEstimation.EstimationMonth.Storage = extrapolateStorageUsage(usage, &pricingModel, &hoursInMonthTotal, &timeInMonthRemaining)
-			result.Children[usage.DeviceId] = child
-			result.CostWithEstimation.Month.Storage += child.Month.Storage
-			result.CostWithEstimation.EstimationMonth.Storage += child.EstimationMonth.Storage
-		}
-
-		promQuery := "round(sum by (device_id) (increase(connector_source_received_device_msg_size_count{device_id=~\"" + strings.Join(deviceIds, "|") + "\"}[" + end.Sub(start).Round(time.Second).String() + "]))) != 0"
-
-		resp, w, err := c.prometheus.Query(context.Background(), promQuery, end)
-		if err != nil {
-			return result, err
-		}
-		if len(w) > 0 {
-			log.Printf("WARNING: prometheus warnings = %#v\n", w)
-		}
-		if resp.Type() != prometheus_model.ValVector {
-			return result, fmt.Errorf("unexpected prometheus response %#v", resp)
-		}
-		values, ok := resp.(prometheus_model.Vector)
-		if !ok {
-			return result, fmt.Errorf("unexpected prometheus response %#v", resp)
-		}
-
-		for _, element := range values {
-			deviceId, ok := element.Metric["device_id"]
-			if !ok {
-				return result, fmt.Errorf("unexpected prometheus response element %#v", element)
+			if len(w) > 0 {
+				log.Printf("WARNING: prometheus warnings = %#v\n", w)
 			}
-			device, ok := result.Children[string(deviceId)]
+			if resp.Type() != prometheus_model.ValVector {
+				return fmt.Errorf("unexpected prometheus response %#v", resp)
+			}
+			values, ok := resp.(prometheus_model.Vector)
 			if !ok {
-				device = model.CostWithChildren{
-					CostWithEstimation: model.CostWithEstimation{
-						Month:           model.CostEntry{},
-						EstimationMonth: model.CostEntry{},
-					},
+				return fmt.Errorf("unexpected prometheus response %#v", resp)
+			}
+
+			for _, element := range values {
+				metric, ok := element.Metric[metricName]
+				if !ok {
+					return fmt.Errorf("unexpected prometheus response element %#v", element)
 				}
+				metricStr := string(metric)
+
+				id := metricStr
+				if !strings.HasPrefix(metricStr, deviceIdPrefix) {
+					matches := deviceTableMatch.FindAllStringSubmatch(metricStr, -1)
+					if matches == nil || len(matches[0]) != 3 {
+						return fmt.Errorf("received metric for unexpected table name %#v", metricStr)
+					}
+
+					id, err = models.LongId(matches[0][1])
+					if err != nil {
+						return err
+					}
+
+					id = deviceIdPrefix + id
+				}
+
+				val := sampleToFloat(element.Value)
+				child, ok := result.Children[string(id)]
+				if !ok {
+					child = model.CostWithChildren{
+						CostWithEstimation: model.CostWithEstimation{
+							Month:           model.CostEntry{},
+							EstimationMonth: model.CostEntry{},
+						},
+					}
+				}
+				callback(metricStr, val, &child)
+				result.Children[id] = child
 			}
-			device.Month.Requests = sampleToFloat(element.Value)
-			device.EstimationMonth.Requests = device.Month.Requests * multiplier
-			result.Children[string(deviceId)] = device
-			result.CostWithEstimation.Month.Requests += device.Month.Requests
-			result.CostWithEstimation.EstimationMonth.Requests += device.EstimationMonth.Requests
+			return nil
+		}
+		// Costs in current month
+		promQuery := "avg_over_time(avg by (table) (timescale_table_size_bytes{table=~\"" + strings.Join(tables, "|") + "\"})[" + hoursInMonthProgressedStr + "h:])"
+		err = insertWithQuery(promQuery, "table", func(table string, value float64, child *model.CostWithChildren) {
+			tableSizeBytesEstimation := value
+			tableSizeBytes, ok := tableSizeByteMap[table]
+			if !ok {
+				tableSizeBytes = 0
+			}
+
+			avgFutureTableSize := (tableSizeBytesEstimation + tableSizeBytes) / 2
+			futureCost := pricingModel.Storage * avgFutureTableSize * timeInMonthRemaining.Hours() / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
+			child.CostWithEstimation.EstimationMonth.Storage += futureCost
+			result.CostWithEstimation.EstimationMonth.Storage += futureCost
+		})
+		if err != nil {
+			return result, err
+		}
+
+		// Estimations
+		promQuery = "predict_linear(avg by (table) (timescale_table_size_bytes{table=~\"" + strings.Join(tables, "|") + "\"})[24h:], " + secondsInMonthRemainingStr + ")"
+		err = insertWithQuery(promQuery, "table", func(table string, value float64, child *model.CostWithChildren) {
+			existingTableSizeBytes, ok := tableSizeByteMap[table]
+			if !ok {
+				existingTableSizeBytes = 0
+			}
+			tableSizeByteMap[table] = existingTableSizeBytes + value
+			additionalCost := pricingModel.Storage * value * float64(hoursInMonthProgressed) / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
+			child.CostWithEstimation.Month.Storage += additionalCost
+			result.CostWithEstimation.Month.Storage += additionalCost
+			child.CostWithEstimation.EstimationMonth.Storage += additionalCost
+		})
+		if err != nil {
+			return result, err
+		}
+
+		// Requests
+		promQuery = "round(sum by (device_id) (increase(connector_source_received_device_msg_size_count{device_id=~\"" + strings.Join(deviceIds, "|") + "\"}[" + end.Sub(start).Round(time.Second).String() + "]))) != 0"
+		err = insertWithQuery(promQuery, "device_id", func(table string, value float64, child *model.CostWithChildren) {
+			child.Month.Requests = value
+			child.EstimationMonth.Requests = child.Month.Requests * multiplier
+			result.CostWithEstimation.Month.Requests += child.Month.Requests
+			result.CostWithEstimation.EstimationMonth.Requests += child.EstimationMonth.Requests
+		})
+		if err != nil {
+			return result, err
 		}
 	}
-
 	return
 }
 
-func prepExtrapolate() (float64, int, time.Duration) {
+func getMonthTimeInfo() (int, time.Duration) {
 	now := time.Now()
 	hoursInMonthProgressed := 0
 	hoursInMonthProgressed += (now.Day() - 1) * 24
@@ -185,13 +239,6 @@ func prepExtrapolate() (float64, int, time.Duration) {
 
 	startNextMonth := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC)
 	timeInMonthRemaining := startNextMonth.Sub(now)
-	startThisMonth := time.Date(now.Year(), now.Month(), 0, 0, 0, 0, 0, time.UTC)
-	hoursInMonthTotal := startNextMonth.Sub(startThisMonth).Hours()
 
-	return hoursInMonthTotal, hoursInMonthProgressed, timeInMonthRemaining
-}
-
-func extrapolateStorageUsage(usage timescale_wrapper.Usage, pricingModel *model.PricingModel, hoursInMonthTotal *float64, timeInMonthRemaining *time.Duration) float64 {
-	estimatedBytes := (float64(usage.Bytes) + (usage.BytesPerDay * timeInMonthRemaining.Hours() / 24.0))
-	return pricingModel.Storage * estimatedBytes * (*hoursInMonthTotal) / 1000000000
+	return hoursInMonthProgressed, timeInMonthRemaining
 }

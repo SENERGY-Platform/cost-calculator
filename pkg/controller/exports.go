@@ -48,7 +48,7 @@ func (c *Controller) GetExportsTree(userId string, token string, admin bool) (re
 		return result, err
 	}
 
-	_, hoursInMonthProgressed, timeInMonthRemaining := prepExtrapolate()
+	hoursInMonthProgressed, timeInMonthRemaining := getMonthTimeInfo()
 	var instances serving.Instances
 
 	t := true
@@ -146,13 +146,13 @@ func (c *Controller) GetExportsTree(userId string, token string, admin bool) (re
 				avgFutureTableSize := (tableSizeBytesEstimation + tableSizeBytes) / 2
 				futureCost := pricingModel.Storage * avgFutureTableSize * timeInMonthRemaining.Hours() / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
 				child.CostWithEstimation.EstimationMonth.Storage = child.CostWithEstimation.Month.Storage + futureCost
+				result.CostWithEstimation.EstimationMonth.Storage += child.EstimationMonth.Storage
 			} else {
 				tableSizeByteMap[exportId] = tableSizeBytes
 				child.CostWithEstimation.Month.Storage = pricingModel.Storage * tableSizeBytes * float64(hoursInMonthProgressed) / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
+				result.CostWithEstimation.Month.Storage += child.Month.Storage
 			}
 			result.Children[exportId] = child
-			result.CostWithEstimation.Month.Storage += child.Month.Storage
-			result.CostWithEstimation.EstimationMonth.Storage += child.EstimationMonth.Storage
 		}
 		return nil
 	}
