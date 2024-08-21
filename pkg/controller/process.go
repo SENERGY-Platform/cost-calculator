@@ -30,7 +30,7 @@ import (
 	prometheus_model "github.com/prometheus/common/model"
 )
 
-func (c *Controller) GetProcessTree(userId string) (processCost model.CostWithChildren, err error) {
+func (c *Controller) GetProcessTree(userId string, skipEstimation bool) (processCost model.CostWithChildren, err error) {
 	timer := time.Now()
 	processCost = model.CostWithChildren{
 		CostWithEstimation: model.CostWithEstimation{
@@ -50,7 +50,7 @@ func (c *Controller) GetProcessTree(userId string) (processCost model.CostWithCh
 
 	if userProcessFactor > 0 {
 		for k, v := range c.config.ProcessCostSources {
-			stats, err := c.getPodsMonth(&podStatsFilter{
+			filter := &podStatsFilter{
 				CPU:     true,
 				RAM:     true,
 				Storage: true,
@@ -60,8 +60,11 @@ func (c *Controller) GetProcessTree(userId string) (processCost model.CostWithCh
 						"pod": v,
 					},
 				},
-				PredictionBasedOn: &d24h,
-			})
+			}
+			if !skipEstimation {
+				filter.PredictionBasedOn = &d24h
+			}
+			stats, err := c.getPodsMonth(filter)
 			if err != nil {
 				return processCost, err
 			}
@@ -89,13 +92,15 @@ func (c *Controller) GetProcessTree(userId string) (processCost model.CostWithCh
 							Ram:     stat.Month.Ram * userProcessFactor,
 							Storage: stat.Month.Storage * userProcessFactor,
 						},
-						EstimationMonth: model.CostEntry{
-							Cpu:     stat.EstimationMonth.Cpu * userProcessFactor,
-							Ram:     stat.EstimationMonth.Ram * userProcessFactor,
-							Storage: stat.EstimationMonth.Storage * userProcessFactor,
-						},
 					},
 					Children: map[string]model.CostWithChildren{},
+				}
+				if !skipEstimation {
+					child.CostWithEstimation.EstimationMonth = model.CostEntry{
+						Cpu:     stat.EstimationMonth.Cpu * userProcessFactor,
+						Ram:     stat.EstimationMonth.Ram * userProcessFactor,
+						Storage: stat.EstimationMonth.Storage * userProcessFactor,
+					}
 				}
 				existingChild, ok := processCost.Children[name]
 				if ok {
@@ -109,9 +114,11 @@ func (c *Controller) GetProcessTree(userId string) (processCost model.CostWithCh
 				processCost.Month.Ram = processCost.Month.Ram + child.Month.Ram
 				processCost.Month.Storage = processCost.Month.Storage + child.Month.Storage
 
-				processCost.EstimationMonth.Cpu = processCost.EstimationMonth.Cpu + child.EstimationMonth.Cpu
-				processCost.EstimationMonth.Ram = processCost.EstimationMonth.Ram + child.EstimationMonth.Ram
-				processCost.EstimationMonth.Storage = processCost.EstimationMonth.Storage + child.EstimationMonth.Storage
+				if !skipEstimation {
+					processCost.EstimationMonth.Cpu = processCost.EstimationMonth.Cpu + child.EstimationMonth.Cpu
+					processCost.EstimationMonth.Ram = processCost.EstimationMonth.Ram + child.EstimationMonth.Ram
+					processCost.EstimationMonth.Storage = processCost.EstimationMonth.Storage + child.EstimationMonth.Storage
+				}
 
 				processDefinitionFactors, err := c.getProcessDefinitionFactors(name, userId, start, end)
 				if err != nil {
@@ -128,13 +135,15 @@ func (c *Controller) GetProcessTree(userId string) (processCost model.CostWithCh
 								Ram:     child.Month.Ram * factor,
 								Storage: child.Month.Storage * factor,
 							},
-							EstimationMonth: model.CostEntry{
-								Cpu:     child.EstimationMonth.Cpu * factor,
-								Ram:     child.EstimationMonth.Ram * factor,
-								Storage: child.EstimationMonth.Storage * factor,
-							},
 						},
 						Children: map[string]model.CostWithChildren{},
+					}
+					if !skipEstimation {
+						grandchild.CostWithEstimation.EstimationMonth = model.CostEntry{
+							Cpu:     child.EstimationMonth.Cpu * factor,
+							Ram:     child.EstimationMonth.Ram * factor,
+							Storage: child.EstimationMonth.Storage * factor,
+						}
 					}
 					child.Children[processDefinition] = grandchild
 				}
@@ -144,7 +153,7 @@ func (c *Controller) GetProcessTree(userId string) (processCost model.CostWithCh
 
 	marshallerCostTotal := model.CostWithEstimation{}
 	for k, v := range c.config.MarshallingCostSources {
-		stats, err := c.getPodsMonth(&podStatsFilter{
+		filter := &podStatsFilter{
 			CPU:     true,
 			RAM:     true,
 			Storage: true,
@@ -154,8 +163,11 @@ func (c *Controller) GetProcessTree(userId string) (processCost model.CostWithCh
 					"pod": v,
 				},
 			},
-			PredictionBasedOn: &d24h,
-		})
+		}
+		if !skipEstimation {
+			filter.PredictionBasedOn = &d24h
+		}
+		stats, err := c.getPodsMonth(filter)
 		if err != nil {
 			return processCost, err
 		}
@@ -217,7 +229,7 @@ func (c *Controller) GetProcessTree(userId string) (processCost model.CostWithCh
 	if userProcessIoFactor != 0 {
 		processIoCostTotal := model.CostWithEstimation{}
 		for k, v := range c.config.ProcessIoCostSources {
-			stats, err := c.getPodsMonth(&podStatsFilter{
+			filter := &podStatsFilter{
 				CPU:     true,
 				RAM:     true,
 				Storage: true,
@@ -227,8 +239,11 @@ func (c *Controller) GetProcessTree(userId string) (processCost model.CostWithCh
 						"pod": v,
 					},
 				},
-				PredictionBasedOn: &d24h,
-			})
+			}
+			if !skipEstimation {
+				filter.PredictionBasedOn = &d24h
+			}
+			stats, err := c.getPodsMonth(filter)
 			if err != nil {
 				return processCost, err
 			}
@@ -243,13 +258,15 @@ func (c *Controller) GetProcessTree(userId string) (processCost model.CostWithCh
 					Ram:     processIoCostTotal.Month.Ram * userProcessIoFactor,
 					Storage: processIoCostTotal.Month.Storage * userProcessIoFactor,
 				},
-				EstimationMonth: model.CostEntry{
-					Cpu:     processIoCostTotal.EstimationMonth.Cpu * userProcessIoFactor,
-					Ram:     processIoCostTotal.EstimationMonth.Ram * userProcessIoFactor,
-					Storage: processIoCostTotal.EstimationMonth.Storage * userProcessIoFactor,
-				},
 			},
 			Children: map[string]model.CostWithChildren{},
+		}
+		if !skipEstimation {
+			processIoCostUser.CostWithEstimation.EstimationMonth = model.CostEntry{
+				Cpu:     processIoCostTotal.EstimationMonth.Cpu * userProcessIoFactor,
+				Ram:     processIoCostTotal.EstimationMonth.Ram * userProcessIoFactor,
+				Storage: processIoCostTotal.EstimationMonth.Storage * userProcessIoFactor,
+			}
 		}
 		processCost.Children["process-io"] = processIoCostUser
 	}

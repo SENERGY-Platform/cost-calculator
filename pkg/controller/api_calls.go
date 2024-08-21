@@ -28,7 +28,7 @@ import (
 	prometheus_model "github.com/prometheus/common/model"
 )
 
-func (c *Controller) GetApiCallsTree(username string) (result model.CostWithChildren, err error) {
+func (c *Controller) GetApiCallsTree(username string, skipEstimation bool) (result model.CostWithChildren, err error) {
 	timer := time.Now()
 	result = model.CostWithChildren{
 		CostWithEstimation: model.CostWithEstimation{
@@ -74,8 +74,7 @@ func (c *Controller) GetApiCallsTree(username string) (result model.CostWithChil
 		if !ok {
 			clientEntry = model.CostWithChildren{
 				CostWithEstimation: model.CostWithEstimation{
-					EstimationMonth: model.CostEntry{},
-					Month:           model.CostEntry{},
+					Month: model.CostEntry{},
 				},
 				Children: map[string]model.CostWithChildren{},
 			}
@@ -84,22 +83,26 @@ func (c *Controller) GetApiCallsTree(username string) (result model.CostWithChil
 		if !ok {
 			serviceEntry = model.CostWithChildren{
 				CostWithEstimation: model.CostWithEstimation{
-					EstimationMonth: model.CostEntry{},
-					Month:           model.CostEntry{},
+					Month: model.CostEntry{},
 				},
 			}
 		}
 		value := sampleToFloat(element.Value)
-		estimate := math.Round(value * multiplier)
 
 		clientEntry.CostWithEstimation.Month.Requests += value
-		clientEntry.CostWithEstimation.EstimationMonth.Requests += estimate
 
 		serviceEntry.CostWithEstimation.Month.Requests += value
-		serviceEntry.CostWithEstimation.EstimationMonth.Requests += estimate
 
 		result.Month.Requests += value
-		result.EstimationMonth.Requests += estimate
+
+		if !skipEstimation {
+			estimate := math.Round(value * multiplier)
+			clientEntry.CostWithEstimation.EstimationMonth = model.CostEntry{}
+			clientEntry.CostWithEstimation.EstimationMonth.Requests += estimate
+			serviceEntry.CostWithEstimation.EstimationMonth = model.CostEntry{}
+			serviceEntry.CostWithEstimation.EstimationMonth.Requests += estimate
+			result.EstimationMonth.Requests += estimate
+		}
 
 		clientEntry.Children[service] = serviceEntry
 		result.Children[client] = clientEntry

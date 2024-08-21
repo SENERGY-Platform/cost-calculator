@@ -42,7 +42,7 @@ const deviceIdPrefix = "urn:infai:ses:device:"
 	- Device cost only considers storage cost.
 */
 
-func (c *Controller) GetDevicesTree(userId string, token string) (result model.CostWithChildren, err error) {
+func (c *Controller) GetDevicesTree(userId string, token string, skipEstimation bool) (result model.CostWithChildren, err error) {
 	timer := time.Now()
 	result = model.CostWithChildren{
 		CostWithEstimation: model.CostWithEstimation{},
@@ -183,10 +183,12 @@ func (c *Controller) GetDevicesTree(userId string, token string) (result model.C
 				tableSizeBytes = 0
 			}
 
-			avgFutureTableSize := (tableSizeBytesEstimation + tableSizeBytes) / 2
-			futureCost := c.pricingModel.Storage * avgFutureTableSize * timeInMonthRemaining.Hours() / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
-			child.CostWithEstimation.EstimationMonth.Storage += futureCost
-			result.CostWithEstimation.EstimationMonth.Storage += futureCost
+			if !skipEstimation {
+				avgFutureTableSize := (tableSizeBytesEstimation + tableSizeBytes) / 2
+				futureCost := c.pricingModel.Storage * avgFutureTableSize * timeInMonthRemaining.Hours() / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
+				child.CostWithEstimation.EstimationMonth.Storage += futureCost
+				result.CostWithEstimation.EstimationMonth.Storage += futureCost
+			}
 		})
 		if err != nil {
 			return result, err
@@ -194,32 +196,36 @@ func (c *Controller) GetDevicesTree(userId string, token string) (result model.C
 		c.logDebug("DevicesTree: Current Month " + time.Since(timer2).String())
 
 		// Estimations
-		timer2 = time.Now()
-		promQuery = "predict_linear(table:timescale_table_size_bytes:avg_1h{table=~\"" + strings.Join(tables, "|") + "\"}[24h:], " + secondsInMonthRemainingStr + ")"
-		err = insertWithQuery(promQuery, "table", func(table string, value float64, child *model.CostWithChildren) {
-			existingTableSizeBytes, ok := tableSizeByteMap[table]
-			if !ok {
-				existingTableSizeBytes = 0
+		if !skipEstimation {
+			timer2 = time.Now()
+			promQuery = "predict_linear(table:timescale_table_size_bytes:avg_1h{table=~\"" + strings.Join(tables, "|") + "\"}[24h:], " + secondsInMonthRemainingStr + ")"
+			err = insertWithQuery(promQuery, "table", func(table string, value float64, child *model.CostWithChildren) {
+				existingTableSizeBytes, ok := tableSizeByteMap[table]
+				if !ok {
+					existingTableSizeBytes = 0
+				}
+				tableSizeByteMap[table] = existingTableSizeBytes + value
+				additionalCost := c.pricingModel.Storage * value * float64(hoursInMonthProgressed) / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
+				child.CostWithEstimation.Month.Storage += additionalCost
+				result.CostWithEstimation.Month.Storage += additionalCost
+				child.CostWithEstimation.EstimationMonth.Storage += additionalCost
+			})
+			if err != nil {
+				return result, err
 			}
-			tableSizeByteMap[table] = existingTableSizeBytes + value
-			additionalCost := c.pricingModel.Storage * value * float64(hoursInMonthProgressed) / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
-			child.CostWithEstimation.Month.Storage += additionalCost
-			result.CostWithEstimation.Month.Storage += additionalCost
-			child.CostWithEstimation.EstimationMonth.Storage += additionalCost
-		})
-		if err != nil {
-			return result, err
+			c.logDebug("DevicesTree: Estimations " + time.Since(timer2).String())
 		}
-		c.logDebug("DevicesTree: Estimations " + time.Since(timer2).String())
 
 		// Requests
 		timer2 = time.Now()
 		promQuery = "round(sum_over_time(device_id:connector_source_received_device_msg_size_count:sum_increase_1h{device_id=~\"" + strings.Join(deviceIds, "|") + "\"}[" + end.Sub(start).Round(time.Second).String() + "])) != 0"
 		err = insertWithQuery(promQuery, "device_id", func(table string, value float64, child *model.CostWithChildren) {
 			child.Month.Requests = value
-			child.EstimationMonth.Requests = child.Month.Requests * multiplier
 			result.CostWithEstimation.Month.Requests += child.Month.Requests
-			result.CostWithEstimation.EstimationMonth.Requests += child.EstimationMonth.Requests
+			if !skipEstimation {
+				child.EstimationMonth.Requests = child.Month.Requests * multiplier
+				result.CostWithEstimation.EstimationMonth.Requests += child.EstimationMonth.Requests
+			}
 		})
 		if err != nil {
 			return result, err

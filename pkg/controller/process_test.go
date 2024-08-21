@@ -49,7 +49,7 @@ func TestGetCostTree(t *testing.T) {
 		return
 	}
 
-	result, err := ctrl.GetProcessTree(userId)
+	result, err := ctrl.GetProcessTree(userId, false)
 	if err != nil {
 		t.Error(err)
 		return

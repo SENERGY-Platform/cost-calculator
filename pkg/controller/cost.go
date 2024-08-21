@@ -23,27 +23,27 @@ import (
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 )
 
-func (c *Controller) GetCostControllers(userid string, token string, admin bool, costType model.CostType) (res model.CostWithChildren, err error) {
+func (c *Controller) GetCostControllers(userid string, token string, admin bool, costType model.CostType, skipEstimation bool) (res model.CostWithChildren, err error) {
 	switch costType {
 	case model.CostTypeAnalytics:
-		return c.GetAnalyticsTree(userid)
+		return c.GetAnalyticsTree(userid, skipEstimation)
 	case model.CostTypeImports:
-		return c.GetImportsTree(userid)
+		return c.GetImportsTree(userid, skipEstimation)
 	case model.CostTypeProcesses:
-		return c.GetProcessTree(userid)
+		return c.GetProcessTree(userid, skipEstimation)
 	case model.CostTypeApiCalls:
-		return c.GetApiCallsTree(userid)
+		return c.GetApiCallsTree(userid, skipEstimation)
 	case model.CostTypeDevices:
-		return c.GetDevicesTree(userid, token)
+		return c.GetDevicesTree(userid, token, skipEstimation)
 	case model.CostTypeExports:
-		return c.GetExportsTree(userid, token, admin)
+		return c.GetExportsTree(userid, token, admin, skipEstimation)
 	default:
 		return res, errors.New("unknown costType")
 	}
 
 }
 
-func (c *Controller) GetCostTree(userid string, token string, admin bool) (res model.CostTree, err error) {
+func (c *Controller) GetCostTree(userid string, token string, admin bool, skipEstimation bool) (res model.CostTree, err error) {
 	res = model.CostTree{}
 	mux := sync.Mutex{}
 	wg := sync.WaitGroup{}
@@ -52,7 +52,7 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool) (res m
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		analyticsTree, err := c.GetAnalyticsTree(userid)
+		analyticsTree, err := c.GetAnalyticsTree(userid, skipEstimation)
 		if err != nil {
 			superErr = err
 			return
@@ -65,7 +65,7 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool) (res m
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		importsTree, err := c.GetImportsTree(userid)
+		importsTree, err := c.GetImportsTree(userid, skipEstimation)
 		if err != nil {
 			superErr = err
 			return
@@ -78,7 +78,7 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool) (res m
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		processTree, err := c.GetProcessTree(userid)
+		processTree, err := c.GetProcessTree(userid, skipEstimation)
 		if err != nil {
 			superErr = err
 			return
@@ -97,7 +97,7 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool) (res m
 		if err != nil {
 			return
 		}
-		apiCallsTree, err := c.GetApiCallsTree(username)
+		apiCallsTree, err := c.GetApiCallsTree(username, skipEstimation)
 		if err != nil {
 			superErr = err
 			return
@@ -110,7 +110,7 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool) (res m
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		devicesTree, err := c.GetDevicesTree(userid, token)
+		devicesTree, err := c.GetDevicesTree(userid, token, skipEstimation)
 		if err != nil {
 			superErr = err
 			return
@@ -125,7 +125,7 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool) (res m
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		exportsTree, err := c.GetExportsTree(userid, token, admin)
+		exportsTree, err := c.GetExportsTree(userid, token, admin, skipEstimation)
 		if err != nil {
 			superErr = err
 			return

@@ -22,10 +22,9 @@ import (
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 )
 
-func (c *Controller) GetImportsTree(userId string) (tree model.CostWithChildren, err error) {
+func (c *Controller) GetImportsTree(userId string, skipEstimation bool) (tree model.CostWithChildren, err error) {
 	timer := time.Now()
-
-	stats, err := c.getPodsMonth(&podStatsFilter{
+	filter := &podStatsFilter{
 		CPU:     true,
 		RAM:     true,
 		Storage: false,
@@ -35,8 +34,11 @@ func (c *Controller) GetImportsTree(userId string) (tree model.CostWithChildren,
 				"label_user": {userId},
 			},
 		},
-		PredictionBasedOn: &d24h,
-	})
+	}
+	if !skipEstimation {
+		filter.PredictionBasedOn = &d24h
+	}
+	stats, err := c.getPodsMonth(filter)
 	if err != nil {
 		return
 	}

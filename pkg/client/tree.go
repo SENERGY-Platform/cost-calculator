@@ -18,12 +18,13 @@ package client
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 )
 
-func (c *impl) GetTree(token string) (model.CostTree, error) {
-	req, err := http.NewRequest(http.MethodGet, c.baseUrl+"/tree", nil)
+func (c *impl) GetTree(token string, skipEstimation bool) (model.CostTree, error) {
+	req, err := http.NewRequest(http.MethodGet, c.baseUrl+"/tree?skip_estimation="+strconv.FormatBool(skipEstimation), nil)
 	req.Header.Set("Authorization", token)
 	if err != nil {
 		return nil, err
@@ -31,8 +32,8 @@ func (c *impl) GetTree(token string) (model.CostTree, error) {
 	return do[model.CostTree](req)
 }
 
-func (c *impl) GetSubTree(token string, costType model.CostType) (model.CostTree, error) {
-	req, err := http.NewRequest(http.MethodGet, c.baseUrl+"/tree/"+costType, nil)
+func (c *impl) GetSubTree(token string, costType model.CostType, skipEstimation bool) (model.CostTree, error) {
+	req, err := http.NewRequest(http.MethodGet, c.baseUrl+"/tree/"+costType+"?skip_estimation="+strconv.FormatBool(skipEstimation), nil)
 	req.Header.Set("Authorization", token)
 	if err != nil {
 		return nil, err

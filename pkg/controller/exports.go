@@ -36,7 +36,7 @@ import (
 
 var exportTableMatch = regexp.MustCompile("userid:(.{22})_export:(.{22}).*")
 
-func (c *Controller) GetExportsTree(userId string, token string, admin bool) (result model.CostWithChildren, err error) {
+func (c *Controller) GetExportsTree(userId string, token string, admin bool, skipEstimation bool) (result model.CostWithChildren, err error) {
 	timer := time.Now()
 	result = model.CostWithChildren{
 		CostWithEstimation: model.CostWithEstimation{},
@@ -156,10 +156,12 @@ func (c *Controller) GetExportsTree(userId string, token string, admin bool) (re
 	}
 
 	// Estimations
-	promQuery = "predict_linear(avg by (table) (timescale_table_size_bytes{table=~\"" + strings.Join(tables, "|") + "\"})[24h:], " + secondsInMonthRemainingStr + ")"
-	err = insertWithQuery(promQuery, true)
-	if err != nil {
-		return result, err
+	if !skipEstimation {
+		promQuery = "predict_linear(avg by (table) (timescale_table_size_bytes{table=~\"" + strings.Join(tables, "|") + "\"})[24h:], " + secondsInMonthRemainingStr + ")"
+		err = insertWithQuery(promQuery, true)
+		if err != nil {
+			return result, err
+		}
 	}
 	c.logDebug("ExportsTree " + time.Since(timer).String())
 	return

@@ -26,8 +26,8 @@ import (
 )
 
 type Client interface {
-	GetTree(token string) (model.CostTree, error)
-	GetSubTree(token string, costType model.CostType) (model.CostTree, error)
+	GetTree(token string, skipEstimation bool) (model.CostTree, error)
+	GetSubTree(token string, costType model.CostType, skipEstimation bool) (model.CostTree, error)
 	GetFlowEstimation(token string, flowId string) (model.Estimation, error)
 	GetFlowEstimations(token string, flowIds []string) ([]model.Estimation, error)
 	GetImportEstimation(token string, importTypeId string) (model.Estimation, error)

@@ -24,9 +24,9 @@ import (
 
 var d24h = time.Hour * 24
 
-func (c *Controller) GetAnalyticsTree(userId string) (tree model.CostWithChildren, err error) {
+func (c *Controller) GetAnalyticsTree(userId string, skipEstimation bool) (tree model.CostWithChildren, err error) {
 	timer := time.Now()
-	stats, err := c.getPodsMonth(&podStatsFilter{
+	filter := &podStatsFilter{
 		CPU:     true,
 		RAM:     true,
 		Storage: true,
@@ -36,8 +36,11 @@ func (c *Controller) GetAnalyticsTree(userId string) (tree model.CostWithChildre
 				"label_user": {userId},
 			},
 		},
-		PredictionBasedOn: &d24h,
-	})
+	}
+	if !skipEstimation {
+		filter.PredictionBasedOn = &d24h
+	}
+	stats, err := c.getPodsMonth(filter)
 	if err != nil {
 		return
 	}

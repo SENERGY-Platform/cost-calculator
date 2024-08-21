@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/controller"
@@ -38,7 +39,16 @@ func CostsEndpoint(router *httprouter.Router, config configuration.Config, contr
 			return
 		}
 		token := getToken(request)
-		overview, err := controller.GetCostControllers(userId, token, admin, params.ByName("costType"))
+		skipEstimation := false
+		if len(params.ByName("skip_estimation")) > 0 {
+			skipEstimation, err = strconv.ParseBool(params.ByName("skip_estimation"))
+			if err != nil {
+				http.Error(writer, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}
+
+		overview, err := controller.GetCostControllers(userId, token, admin, params.ByName("costType"), skipEstimation)
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 			return
@@ -57,7 +67,15 @@ func CostsEndpoint(router *httprouter.Router, config configuration.Config, contr
 			return
 		}
 		token := getToken(request)
-		overview, err := controller.GetCostTree(userId, token, admin)
+		skipEstimation := false
+		if len(params.ByName("skip_estimation")) > 0 {
+			skipEstimation, err = strconv.ParseBool(params.ByName("skip_estimation"))
+			if err != nil {
+				http.Error(writer, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}
+		overview, err := controller.GetCostTree(userId, token, admin, skipEstimation)
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 			return

@@ -37,6 +37,8 @@ type podStatsFilter struct {
 	RAM               bool
 	Storage           bool
 	PredictionBasedOn *time.Duration
+	Start             time.Time
+	End               time.Time
 }
 
 type podFilter struct {
