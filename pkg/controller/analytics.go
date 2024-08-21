@@ -25,7 +25,7 @@ import (
 var d24h = time.Hour * 24
 
 func (c *Controller) GetAnalyticsTree(userId string) (tree model.CostWithChildren, err error) {
-
+	timer := time.Now()
 	stats, err := c.getPodsMonth(&podStatsFilter{
 		CPU:     true,
 		RAM:     true,
@@ -44,5 +44,6 @@ func (c *Controller) GetAnalyticsTree(userId string) (tree model.CostWithChildre
 
 	tree = buildTree(stats, "label_pipeline_id", "pod", "container")
 
+	c.logDebug("AnalyticsTree " + time.Since(timer).String())
 	return
 }

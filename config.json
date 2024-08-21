@@ -3,7 +3,7 @@
   "namespace_analytics": "analytics-pipelines",
   "namespace_imports": "import-container",
   "analytics_parsing_url":"https://api.senergy.infai.org/analytics/flow-parser/v2",
-  "debug": true,
+  "debug": false,
 
   "process_cost_sources" : {
     "process-task-worker": ["memcached.*", "optimistic-worker.*", "pessimistic-worker.*"],
@@ -21,8 +21,8 @@
   },
 
   "prometheus_url": "",
-  "user_process_cost_fraction_query": "scalar(sum(increase( external_task_worker_task_command_send_count_vec{user_id=\"$user_id\"}[$__range]))) / scalar(sum(increase( external_task_worker_task_command_send_count_vec[$__range])))",
-  "process_marshaller_cost_fraction_query": "(scalar(sum(increase(marshaller_marshalling_request_handling_duration_sum{ call_source=~\".*process-task-worker.*\"}[$__range]))) + scalar(sum(increase(marshaller_unmarshalling_request_handling_duration_sum{ call_source=~\".*process-task-worker.*\"}[$__range])))) / (scalar(sum(increase(marshaller_marshalling_request_handling_duration_sum[$__range]))) + scalar(sum(increase(marshaller_unmarshalling_request_handling_duration_sum[$__range]))))",
+  "user_process_cost_fraction_query": "scalar(increase(user_id:external_task_worker_task_command_send_count_vec:sum{user_id=\"$user_id\"}[$__range])) / scalar(sum(increase(user_id:external_task_worker_task_command_send_count_vec:sum[$__range])))",
+  "process_marshaller_cost_fraction_query": "scalar(avg_over_time(marshaller_cost_fraction[$__range]))",
   "user_marshaller_cost_fraction_query": "scalar(sum(increase( external_task_worker_task_marshalling_latency_sum{user_id=\"$user_id\"}[$__range]))) / scalar(sum(increase( external_task_worker_task_marshalling_latency_sum[$__range])))",
   "user_process_definition_cost_fraction_query": "sum( increase(external_task_worker_task_command_send_count_vec{user_id=\"$user_id\",endpoint=\"$instance_id\"}[$__range]) ) by (process_definition_id)",
   "user_process_io_cost_fraction_query": "(scalar(sum(increase(process_io_api_writes_size_sum{user_id=\"$user_id\"}[$__range]))) + scalar(sum(increase(process_io_api_read_size_sum{user_id=\"$user_id\"}[$__range])))) / (scalar(sum(increase(process_io_api_writes_size_sum[$__range]))) + scalar(sum(increase(process_io_api_read_size_sum[$__range]))))",

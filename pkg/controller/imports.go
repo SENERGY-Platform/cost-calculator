@@ -23,7 +23,7 @@ import (
 )
 
 func (c *Controller) GetImportsTree(userId string) (tree model.CostWithChildren, err error) {
-	d24h := time.Hour * 24
+	timer := time.Now()
 
 	stats, err := c.getPodsMonth(&podStatsFilter{
 		CPU:     true,
@@ -42,6 +42,6 @@ func (c *Controller) GetImportsTree(userId string) (tree model.CostWithChildren,
 	}
 
 	tree = buildTree(stats, "label_import_id")
-
+	c.logDebug("ImportsTree " + time.Since(timer).String())
 	return
 }

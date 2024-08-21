@@ -29,6 +29,7 @@ import (
 )
 
 func (c *Controller) GetApiCallsTree(username string) (result model.CostWithChildren, err error) {
+	timer := time.Now()
 	result = model.CostWithChildren{
 		CostWithEstimation: model.CostWithEstimation{
 			EstimationMonth: model.CostEntry{},
@@ -103,6 +104,7 @@ func (c *Controller) GetApiCallsTree(username string) (result model.CostWithChil
 		clientEntry.Children[service] = serviceEntry
 		result.Children[client] = clientEntry
 	}
+	c.logDebug("ApiCallsTree " + time.Since(timer).String())
 
 	return
 }

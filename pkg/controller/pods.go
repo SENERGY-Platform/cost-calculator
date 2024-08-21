@@ -22,6 +22,7 @@ import (
 	"log"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
@@ -59,38 +60,62 @@ type upsertFlags struct {
 
 func (c *Controller) getPodsMonth(filter *podStatsFilter) (result []podStat, err error) {
 	resultMap := map[string]podStat{}
-
+	mux := sync.Mutex{}
+	wg := sync.WaitGroup{}
+	var superErr error
 	if filter.CPU {
-		cpustats, err := c.getPodCPUMonth(&filter.podFilter, filter.PredictionBasedOn)
-		if err != nil {
-			return nil, err
-		}
-		err = upsertPodStats(cpustats, resultMap, &upsertFlags{cpu: true, cpuEstimation: true})
-		if err != nil {
-			return nil, err
-		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cpustats, err := c.getPodCPUMonth(&filter.podFilter, filter.PredictionBasedOn)
+			if err != nil {
+				superErr = err
+			}
+			mux.Lock()
+			defer mux.Unlock()
+			err = upsertPodStats(cpustats, resultMap, &upsertFlags{cpu: true, cpuEstimation: true})
+			if err != nil {
+				superErr = err
+			}
+		}()
 	}
 
 	if filter.RAM {
-		ramstats, err := c.getPodRAMMonth(&filter.podFilter, filter.PredictionBasedOn)
-		if err != nil {
-			return nil, err
-		}
-		err = upsertPodStats(ramstats, resultMap, &upsertFlags{ram: true, ramEstimation: true})
-		if err != nil {
-			return nil, err
-		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ramstats, err := c.getPodRAMMonth(&filter.podFilter, filter.PredictionBasedOn)
+			if err != nil {
+				superErr = err
+			}
+			mux.Lock()
+			defer mux.Unlock()
+			err = upsertPodStats(ramstats, resultMap, &upsertFlags{ram: true, ramEstimation: true})
+			if err != nil {
+				superErr = err
+			}
+		}()
 	}
 
 	if filter.Storage {
-		storageStats, err := c.getPodStorageMonth(&filter.podFilter, filter.PredictionBasedOn)
-		if err != nil {
-			return nil, err
-		}
-		err = upsertPodStats(storageStats, resultMap, &upsertFlags{storage: true, storageEstimation: true})
-		if err != nil {
-			return nil, err
-		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			storageStats, err := c.getPodStorageMonth(&filter.podFilter, filter.PredictionBasedOn)
+			if err != nil {
+				superErr = err
+			}
+			mux.Lock()
+			defer mux.Unlock()
+			err = upsertPodStats(storageStats, resultMap, &upsertFlags{storage: true, storageEstimation: true})
+			if err != nil {
+				superErr = err
+			}
+		}()
+	}
+	wg.Wait()
+	if superErr != nil {
+		return nil, superErr
 	}
 
 	result = maps.Values(resultMap)
@@ -100,22 +125,22 @@ func (c *Controller) getPodsMonth(filter *podStatsFilter) (result []podStat, err
 func (c *Controller) getPodCPUMonth(filter *podFilter, estimationBasedOn *time.Duration) (result []podStat, err error) {
 	hoursInMonthProgressed, timeInMonthRemaining, hoursInMonthProgressedStr, _, _ := getMonthTimeInfo()
 
-	baseQuery0 := "avg(rate(container_cpu_usage_seconds_total{container!=\"\", container!=\"POD\""
+	baseQuery0 := "avg_over_time(namespace_pod_container:container_cpu_usage_seconds_total:avg_rate_1h{"
 	if filter.Namespace != nil {
-		baseQuery0 += ", namespace=\"" + *filter.Namespace + "\""
+		baseQuery0 += "namespace=\"" + *filter.Namespace + "\""
 	}
 	baseQuery0 += "}"
 
-	baseQuery1 := ")) by (namespace, pod, container) * on (namespace, pod) group_left(" + c.config.CustomPrometheusLabels + ") kube_pod_labels{container=\"kube-state-metrics\""
+	baseQuery1 := ") * on (namespace, pod) group_left(" + c.config.CustomPrometheusLabels + ") kube_pod_labels{container=\"kube-state-metrics\""
 	if filter.Namespace != nil {
 		baseQuery1 += ", namespace=\"" + *filter.Namespace + "\""
 	}
 	baseQuery1 += getLabelFilterStr(filter.Labels) + "}"
 
-	promQuery := baseQuery0 + "[" + hoursInMonthProgressedStr + "h]" + baseQuery1
+	promQuery := baseQuery0 + "[" + hoursInMonthProgressedStr + "h:]" + baseQuery1
 	var promQueryPred *string
 	if estimationBasedOn != nil {
-		s := baseQuery0 + "[" + estimationBasedOn.String() + "]" + baseQuery1
+		s := baseQuery0 + "[" + estimationBasedOn.String() + ":]" + baseQuery1
 		promQueryPred = &s
 	}
 	return c.queryCpuRam(timeInMonthRemaining, hoursInMonthProgressed, &promQuery, promQueryPred, true)
@@ -215,20 +240,20 @@ func (c *Controller) getPodStorageMonth(filter *podFilter, estimationBasedOn *ti
 	hoursInMonthProgressed, timeInMonthRemaining, hoursInMonthProgressedStr, _, _ := getMonthTimeInfo()
 
 	result = []podStat{}
-	promQuery := "(avg_over_time"
-	baseQuery0 := "(avg by(namespace, persistentvolumeclaim) (kube_persistentvolumeclaim_resource_requests_storage_bytes{"
+	promQuery := "avg_over_time"
+	baseQuery0 := "(namespace_persistentvolumeclaim:kube_persistentvolumeclaim_resource_requests_storage_bytes:avg_1h{"
 	if filter.Namespace != nil {
 		baseQuery0 += "namespace=\"" + *filter.Namespace + "\""
 	}
 
-	baseQuery0 += "})"
+	baseQuery0 += "}"
 	promQuery += baseQuery0 + "[" + hoursInMonthProgressedStr + "h:]"
 
 	baseQuery1 := ") * on (namespace, persistentvolumeclaim) group_right() kube_pod_spec_volumes_persistentvolumeclaims_info{container=\"kube-state-metrics\""
 	if filter.Namespace != nil {
 		baseQuery1 += ", namespace=\"" + *filter.Namespace + "\""
 	}
-	baseQuery1 += "}) * on (namespace, pod) group_left(" + c.config.CustomPrometheusLabels + ") kube_pod_labels{container=\"kube-state-metrics\""
+	baseQuery1 += "} * on (namespace, pod) group_left(" + c.config.CustomPrometheusLabels + ") kube_pod_labels{container=\"kube-state-metrics\""
 	if filter.Namespace != nil {
 		baseQuery1 += ", namespace=\"" + *filter.Namespace + "\""
 	}
@@ -254,8 +279,7 @@ func (c *Controller) getPodStorageMonth(filter *podFilter, estimationBasedOn *ti
 			},
 		}
 		if estimationBasedOn != nil {
-			// This query could be used: promQuery = "(predict_linear" + baseQuery0 + "[" + estimationBasedOn.String() + ":], " + secondsInMonthRemainingStr + baseQuery1
-			// But since we are calculating cost based on the PVC size and changes aren't common, just assume no changes and calculate cost based on time remaining
+			// Since we are calculating cost based on the PVC size and changes aren't common, just assume no changes and calculate cost based on time remaining
 			stat.CostWithEstimation.EstimationMonth = model.CostEntry{}
 			stat.CostWithEstimation.EstimationMonth.Storage = stat.CostWithEstimation.Month.Storage + c.pricingModel.Storage*float64(element.Value)*timeInMonthRemaining.Hours()/1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
 		}

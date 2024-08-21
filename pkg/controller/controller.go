@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"log"
 	"sync"
 	"time"
 
@@ -77,4 +78,10 @@ func NewController(ctx context.Context, conf configuration.Config, fatal func(er
 	}
 
 	return controller, nil
+}
+
+func (c *Controller) logDebug(s string) {
+	if c.config.Debug {
+		log.Println("DEBUG: " + s)
+	}
 }

@@ -43,6 +43,7 @@ const deviceIdPrefix = "urn:infai:ses:device:"
 */
 
 func (c *Controller) GetDevicesTree(userId string, token string) (result model.CostWithChildren, err error) {
+	timer := time.Now()
 	result = model.CostWithChildren{
 		CostWithEstimation: model.CostWithEstimation{},
 		Children:           map[string]model.CostWithChildren{},
@@ -173,7 +174,8 @@ func (c *Controller) GetDevicesTree(userId string, token string) (result model.C
 			return nil
 		}
 		// Costs in current month
-		promQuery := "avg_over_time(avg by (table) (timescale_table_size_bytes{table=~\"" + strings.Join(tables, "|") + "\"})[" + hoursInMonthProgressedStr + "h:])"
+		timer2 := time.Now()
+		promQuery := "avg_over_time(table:timescale_table_size_bytes:avg_1h{table=~\"" + strings.Join(tables, "|") + "\"}[" + hoursInMonthProgressedStr + "h:])"
 		err = insertWithQuery(promQuery, "table", func(table string, value float64, child *model.CostWithChildren) {
 			tableSizeBytesEstimation := value
 			tableSizeBytes, ok := tableSizeByteMap[table]
@@ -189,9 +191,11 @@ func (c *Controller) GetDevicesTree(userId string, token string) (result model.C
 		if err != nil {
 			return result, err
 		}
+		c.logDebug("DevicesTree: Current Month " + time.Since(timer2).String())
 
 		// Estimations
-		promQuery = "predict_linear(avg by (table) (timescale_table_size_bytes{table=~\"" + strings.Join(tables, "|") + "\"})[24h:], " + secondsInMonthRemainingStr + ")"
+		timer2 = time.Now()
+		promQuery = "predict_linear(table:timescale_table_size_bytes:avg_1h{table=~\"" + strings.Join(tables, "|") + "\"}[24h:], " + secondsInMonthRemainingStr + ")"
 		err = insertWithQuery(promQuery, "table", func(table string, value float64, child *model.CostWithChildren) {
 			existingTableSizeBytes, ok := tableSizeByteMap[table]
 			if !ok {
@@ -206,9 +210,11 @@ func (c *Controller) GetDevicesTree(userId string, token string) (result model.C
 		if err != nil {
 			return result, err
 		}
+		c.logDebug("DevicesTree: Estimations " + time.Since(timer2).String())
 
 		// Requests
-		promQuery = "round(sum by (device_id) (increase(connector_source_received_device_msg_size_count{device_id=~\"" + strings.Join(deviceIds, "|") + "\"}[" + end.Sub(start).Round(time.Second).String() + "]))) != 0"
+		timer2 = time.Now()
+		promQuery = "round(sum_over_time(device_id:connector_source_received_device_msg_size_count:sum_increase_1h{device_id=~\"" + strings.Join(deviceIds, "|") + "\"}[" + end.Sub(start).Round(time.Second).String() + "])) != 0"
 		err = insertWithQuery(promQuery, "device_id", func(table string, value float64, child *model.CostWithChildren) {
 			child.Month.Requests = value
 			child.EstimationMonth.Requests = child.Month.Requests * multiplier
@@ -218,7 +224,9 @@ func (c *Controller) GetDevicesTree(userId string, token string) (result model.C
 		if err != nil {
 			return result, err
 		}
+		c.logDebug("DevicesTree: Requests " + time.Since(timer2).String())
 	}
+	c.logDebug("DevicesTree " + time.Since(timer).String())
 	return
 }
 

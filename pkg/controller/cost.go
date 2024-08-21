@@ -115,7 +115,7 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool) (res m
 			superErr = err
 			return
 		}
-		if devicesTree.Month.Cpu != 0 || devicesTree.Month.Ram != 0 || devicesTree.Month.Storage != 0 {
+		if devicesTree.Month.Cpu != 0 || devicesTree.Month.Ram != 0 || devicesTree.Month.Storage != 0 || devicesTree.Month.Requests != 0 {
 			mux.Lock()
 			res["Devices"] = devicesTree
 			mux.Unlock()

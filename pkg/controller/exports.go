@@ -37,6 +37,7 @@ import (
 var exportTableMatch = regexp.MustCompile("userid:(.{22})_export:(.{22}).*")
 
 func (c *Controller) GetExportsTree(userId string, token string, admin bool) (result model.CostWithChildren, err error) {
+	timer := time.Now()
 	result = model.CostWithChildren{
 		CostWithEstimation: model.CostWithEstimation{},
 		Children:           map[string]model.CostWithChildren{},
@@ -160,5 +161,6 @@ func (c *Controller) GetExportsTree(userId string, token string, admin bool) (re
 	if err != nil {
 		return result, err
 	}
+	c.logDebug("ExportsTree " + time.Since(timer).String())
 	return
 }

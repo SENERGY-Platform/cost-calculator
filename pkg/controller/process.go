@@ -31,6 +31,7 @@ import (
 )
 
 func (c *Controller) GetProcessTree(userId string) (processCost model.CostWithChildren, err error) {
+	timer := time.Now()
 	processCost = model.CostWithChildren{
 		CostWithEstimation: model.CostWithEstimation{
 			Month:           model.CostEntry{},
@@ -40,100 +41,103 @@ func (c *Controller) GetProcessTree(userId string) (processCost model.CostWithCh
 	}
 
 	start, end := getMonthTimeRange()
-
+	timer2 := time.Now()
 	userProcessFactor, err := c.getUserProcessFactor(userId, start, end)
 	if err != nil {
 		return processCost, err
 	}
+	c.logDebug("ProcessTree: getUserProcessFactor " + time.Since(timer2).String())
 
-	for k, v := range c.config.ProcessCostSources {
-		stats, err := c.getPodsMonth(&podStatsFilter{
-			CPU:     true,
-			RAM:     true,
-			Storage: true,
-			podFilter: podFilter{
-				Namespace: &k,
-				Labels: map[string][]string{
-					"pod": v,
-				},
-			},
-			PredictionBasedOn: &d24h,
-		})
-		if err != nil {
-			return processCost, err
-		}
-		for _, stat := range stats {
-			nameLabel, ok := stat.Labels["pod"]
-			if !ok {
-				return processCost, errors.New("missing label pod")
-			}
-			name := string(nameLabel)
-			nameParts := strings.Split(string(nameLabel), "-")
-			i := len(nameParts)
-			if regexp.MustCompile(`.*-\d+$`).Match([]byte(name)) {
-				// is stateful set pod, they always end in -\d
-				i -= 1
-			} else {
-				// is something else, always ends in -xxxxxxxxx-xxxxx
-				i -= 2
-			}
-			name = strings.Join(nameParts[:i], "-")
-
-			child := model.CostWithChildren{
-				CostWithEstimation: model.CostWithEstimation{
-					Month: model.CostEntry{
-						Cpu:     stat.Month.Cpu * userProcessFactor,
-						Ram:     stat.Month.Ram * userProcessFactor,
-						Storage: stat.Month.Storage * userProcessFactor,
-					},
-					EstimationMonth: model.CostEntry{
-						Cpu:     stat.EstimationMonth.Cpu * userProcessFactor,
-						Ram:     stat.EstimationMonth.Ram * userProcessFactor,
-						Storage: stat.EstimationMonth.Storage * userProcessFactor,
+	if userProcessFactor > 0 {
+		for k, v := range c.config.ProcessCostSources {
+			stats, err := c.getPodsMonth(&podStatsFilter{
+				CPU:     true,
+				RAM:     true,
+				Storage: true,
+				podFilter: podFilter{
+					Namespace: &k,
+					Labels: map[string][]string{
+						"pod": v,
 					},
 				},
-				Children: map[string]model.CostWithChildren{},
-			}
-			existingChild, ok := processCost.Children[name]
-			if ok {
-				existingChild.Add(child.CostWithEstimation)
-				processCost.Children[name] = existingChild
-			} else {
-				processCost.Children[name] = child
-			}
-
-			processCost.Month.Cpu = processCost.Month.Cpu + child.Month.Cpu
-			processCost.Month.Ram = processCost.Month.Ram + child.Month.Ram
-			processCost.Month.Storage = processCost.Month.Storage + child.Month.Storage
-
-			processCost.EstimationMonth.Cpu = processCost.EstimationMonth.Cpu + child.EstimationMonth.Cpu
-			processCost.EstimationMonth.Ram = processCost.EstimationMonth.Ram + child.EstimationMonth.Ram
-			processCost.EstimationMonth.Storage = processCost.EstimationMonth.Storage + child.EstimationMonth.Storage
-
-			processDefinitionFactors, err := c.getProcessDefinitionFactors(name, userId, start, end)
+				PredictionBasedOn: &d24h,
+			})
 			if err != nil {
 				return processCost, err
 			}
-			for processDefinition, factor := range processDefinitionFactors {
-				if factor == 0 {
-					continue
+			for _, stat := range stats {
+				nameLabel, ok := stat.Labels["pod"]
+				if !ok {
+					return processCost, errors.New("missing label pod")
 				}
-				grandchild := model.CostWithChildren{
+				name := string(nameLabel)
+				nameParts := strings.Split(string(nameLabel), "-")
+				i := len(nameParts)
+				if regexp.MustCompile(`.*-\d+$`).Match([]byte(name)) {
+					// is stateful set pod, they always end in -\d
+					i -= 1
+				} else {
+					// is something else, always ends in -xxxxxxxxx-xxxxx
+					i -= 2
+				}
+				name = strings.Join(nameParts[:i], "-")
+
+				child := model.CostWithChildren{
 					CostWithEstimation: model.CostWithEstimation{
 						Month: model.CostEntry{
-							Cpu:     child.Month.Cpu * factor,
-							Ram:     child.Month.Ram * factor,
-							Storage: child.Month.Storage * factor,
+							Cpu:     stat.Month.Cpu * userProcessFactor,
+							Ram:     stat.Month.Ram * userProcessFactor,
+							Storage: stat.Month.Storage * userProcessFactor,
 						},
 						EstimationMonth: model.CostEntry{
-							Cpu:     child.EstimationMonth.Cpu * factor,
-							Ram:     child.EstimationMonth.Ram * factor,
-							Storage: child.EstimationMonth.Storage * factor,
+							Cpu:     stat.EstimationMonth.Cpu * userProcessFactor,
+							Ram:     stat.EstimationMonth.Ram * userProcessFactor,
+							Storage: stat.EstimationMonth.Storage * userProcessFactor,
 						},
 					},
 					Children: map[string]model.CostWithChildren{},
 				}
-				child.Children[processDefinition] = grandchild
+				existingChild, ok := processCost.Children[name]
+				if ok {
+					existingChild.Add(child.CostWithEstimation)
+					processCost.Children[name] = existingChild
+				} else {
+					processCost.Children[name] = child
+				}
+
+				processCost.Month.Cpu = processCost.Month.Cpu + child.Month.Cpu
+				processCost.Month.Ram = processCost.Month.Ram + child.Month.Ram
+				processCost.Month.Storage = processCost.Month.Storage + child.Month.Storage
+
+				processCost.EstimationMonth.Cpu = processCost.EstimationMonth.Cpu + child.EstimationMonth.Cpu
+				processCost.EstimationMonth.Ram = processCost.EstimationMonth.Ram + child.EstimationMonth.Ram
+				processCost.EstimationMonth.Storage = processCost.EstimationMonth.Storage + child.EstimationMonth.Storage
+
+				processDefinitionFactors, err := c.getProcessDefinitionFactors(name, userId, start, end)
+				if err != nil {
+					return processCost, err
+				}
+				for processDefinition, factor := range processDefinitionFactors {
+					if factor == 0 {
+						continue
+					}
+					grandchild := model.CostWithChildren{
+						CostWithEstimation: model.CostWithEstimation{
+							Month: model.CostEntry{
+								Cpu:     child.Month.Cpu * factor,
+								Ram:     child.Month.Ram * factor,
+								Storage: child.Month.Storage * factor,
+							},
+							EstimationMonth: model.CostEntry{
+								Cpu:     child.EstimationMonth.Cpu * factor,
+								Ram:     child.EstimationMonth.Ram * factor,
+								Storage: child.EstimationMonth.Storage * factor,
+							},
+						},
+						Children: map[string]model.CostWithChildren{},
+					}
+					child.Children[processDefinition] = grandchild
+				}
 			}
 		}
 	}
@@ -159,71 +163,79 @@ func (c *Controller) GetProcessTree(userId string) (processCost model.CostWithCh
 		marshallerCostTotal.Add(tree.CostWithEstimation)
 	}
 
-	processMarshallerFactor, err := c.getProcessMarshallerFactor(start, end)
-	if err != nil {
-		return processCost, err
-	}
-
+	timer2 = time.Now()
 	userMarshallerFactor, err := c.getUserMarshallerFactor(userId, start, end)
 	if err != nil {
 		return processCost, err
 	}
+	c.logDebug("ProcessTree: getUserMarshallerFactor " + time.Since(timer2).String())
 
-	marshallerCostProcesses := model.CostWithEstimation{
-		Month: model.CostEntry{
-			Cpu:     marshallerCostTotal.Month.Cpu * processMarshallerFactor,
-			Ram:     marshallerCostTotal.Month.Ram * processMarshallerFactor,
-			Storage: marshallerCostTotal.Month.Storage * processMarshallerFactor,
-		},
-		EstimationMonth: model.CostEntry{
-			Cpu:     marshallerCostTotal.EstimationMonth.Cpu * processMarshallerFactor,
-			Ram:     marshallerCostTotal.EstimationMonth.Ram * processMarshallerFactor,
-			Storage: marshallerCostTotal.EstimationMonth.Storage * processMarshallerFactor,
-		},
-	}
-	marshallerCostUser := model.CostWithChildren{
-		CostWithEstimation: model.CostWithEstimation{
-			Month: model.CostEntry{
-				Cpu:     marshallerCostProcesses.Month.Cpu * userMarshallerFactor,
-				Ram:     marshallerCostProcesses.Month.Ram * userMarshallerFactor,
-				Storage: marshallerCostProcesses.Month.Storage * userMarshallerFactor,
-			},
-			EstimationMonth: model.CostEntry{
-				Cpu:     marshallerCostProcesses.EstimationMonth.Cpu * userMarshallerFactor,
-				Ram:     marshallerCostProcesses.EstimationMonth.Ram * userMarshallerFactor,
-				Storage: marshallerCostProcesses.EstimationMonth.Storage * userMarshallerFactor,
-			},
-		},
-		Children: map[string]model.CostWithChildren{},
-	}
-	processCost.Children["marshalling"] = marshallerCostUser
-
-	processIoCostTotal := model.CostWithEstimation{}
-	for k, v := range c.config.ProcessIoCostSources {
-		stats, err := c.getPodsMonth(&podStatsFilter{
-			CPU:     true,
-			RAM:     true,
-			Storage: true,
-			podFilter: podFilter{
-				Namespace: &k,
-				Labels: map[string][]string{
-					"pod": v,
-				},
-			},
-			PredictionBasedOn: &d24h,
-		})
+	if userMarshallerFactor > 0 {
+		timer2 = time.Now()
+		processMarshallerFactor, err := c.getProcessMarshallerFactor(start, end)
 		if err != nil {
 			return processCost, err
 		}
-		tree := buildTree(stats, "namespace")
-		processIoCostTotal.Add(tree.CostWithEstimation)
+		c.logDebug("ProcessTree: getProcessMarshallerFactor " + time.Since(timer2).String())
+
+		marshallerCostProcesses := model.CostWithEstimation{
+			Month: model.CostEntry{
+				Cpu:     marshallerCostTotal.Month.Cpu * processMarshallerFactor,
+				Ram:     marshallerCostTotal.Month.Ram * processMarshallerFactor,
+				Storage: marshallerCostTotal.Month.Storage * processMarshallerFactor,
+			},
+			EstimationMonth: model.CostEntry{
+				Cpu:     marshallerCostTotal.EstimationMonth.Cpu * processMarshallerFactor,
+				Ram:     marshallerCostTotal.EstimationMonth.Ram * processMarshallerFactor,
+				Storage: marshallerCostTotal.EstimationMonth.Storage * processMarshallerFactor,
+			},
+		}
+		marshallerCostUser := model.CostWithChildren{
+			CostWithEstimation: model.CostWithEstimation{
+				Month: model.CostEntry{
+					Cpu:     marshallerCostProcesses.Month.Cpu * userMarshallerFactor,
+					Ram:     marshallerCostProcesses.Month.Ram * userMarshallerFactor,
+					Storage: marshallerCostProcesses.Month.Storage * userMarshallerFactor,
+				},
+				EstimationMonth: model.CostEntry{
+					Cpu:     marshallerCostProcesses.EstimationMonth.Cpu * userMarshallerFactor,
+					Ram:     marshallerCostProcesses.EstimationMonth.Ram * userMarshallerFactor,
+					Storage: marshallerCostProcesses.EstimationMonth.Storage * userMarshallerFactor,
+				},
+			},
+			Children: map[string]model.CostWithChildren{},
+		}
+		processCost.Children["marshalling"] = marshallerCostUser
 	}
 
+	timer2 = time.Now()
 	userProcessIoFactor, err := c.getUserProcessIoFactor(userId, start, end)
 	if err != nil {
 		return processCost, err
 	}
+	c.logDebug("ProcessTree: getUserProcessIoFactor " + time.Since(timer2).String())
 	if userProcessIoFactor != 0 {
+		processIoCostTotal := model.CostWithEstimation{}
+		for k, v := range c.config.ProcessIoCostSources {
+			stats, err := c.getPodsMonth(&podStatsFilter{
+				CPU:     true,
+				RAM:     true,
+				Storage: true,
+				podFilter: podFilter{
+					Namespace: &k,
+					Labels: map[string][]string{
+						"pod": v,
+					},
+				},
+				PredictionBasedOn: &d24h,
+			})
+			if err != nil {
+				return processCost, err
+			}
+			tree := buildTree(stats, "namespace")
+			processIoCostTotal.Add(tree.CostWithEstimation)
+		}
+
 		processIoCostUser := model.CostWithChildren{
 			CostWithEstimation: model.CostWithEstimation{
 				Month: model.CostEntry{
@@ -241,6 +253,7 @@ func (c *Controller) GetProcessTree(userId string) (processCost model.CostWithCh
 		}
 		processCost.Children["process-io"] = processIoCostUser
 	}
+	c.logDebug("ProcessTree " + time.Since(timer).String())
 
 	return processCost, nil
 }
