@@ -29,8 +29,6 @@ import (
 
 type ConfigStruct struct {
 	ApiPort             string `json:"api_port"`
-	OpencostUrl         string `json:"opencost_url"`
-	Prefetch            bool   `json:"prefetch"`
 	AnalyticsParsingUrl string `json:"analytics_parsing_url"`
 
 	NamespaceAnalytics string `json:"namespace_analytics"`
@@ -44,10 +42,11 @@ type ConfigStruct struct {
 	UserMarshallerCostFractionQuery        string `json:"user_marshaller_cost_fraction_query"`
 	UserProcessDefinitionCostFractionQuery string `json:"user_process_definition_cost_fraction_query"`
 	UserProcessIoCostFractionQuery         string `json:"user_process_io_cost_fraction_query"`
+	CustomPrometheusLabels                 string `json:"custom_prometheus_labels"`
 
-	ProcessCostSources     []string `json:"process_cost_sources"`
-	MarshallingCostSources []string `json:"marshalling_cost_sources"`
-	ProcessIoCostSources   []string `json:"process_io_cost_sources"`
+	ProcessCostSources     map[string][]string `json:"process_cost_sources"`
+	MarshallingCostSources map[string][]string `json:"marshalling_cost_sources"`
+	ProcessIoCostSources   map[string][]string `json:"process_io_cost_sources"`
 
 	PermissionsUrl                string `json:"permissions_url"`
 	PermissionsV2Url              string `json:"permissions_v2_url"`

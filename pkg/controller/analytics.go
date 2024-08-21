@@ -17,32 +17,32 @@
 package controller
 
 import (
-	"strings"
+	"time"
 
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
 )
 
-func (c *Controller) GetImportEstimation(authorization string, userid string, importTypeId string) (estimation *model.Estimation, err error) {
+var d24h = time.Hour * 24
+
+func (c *Controller) GetAnalyticsTree(userId string) (tree model.CostWithChildren, err error) {
+
 	stats, err := c.getPodsMonth(&podStatsFilter{
 		CPU:     true,
 		RAM:     true,
-		Storage: false,
+		Storage: true,
 		podFilter: podFilter{
-			Namespace: &c.config.NamespaceImports,
+			Namespace: &c.config.NamespaceAnalytics,
 			Labels: map[string][]string{
-				"label_import_type_id": {strings.ReplaceAll(importTypeId, ":", "_")},
+				"label_user": {userId},
 			},
 		},
 		PredictionBasedOn: &d24h,
 	})
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	l := []float64{}
-	for _, stat := range stats {
-		l = append(l, stat.EstimationMonth.Cpu+stat.EstimationMonth.Ram+stat.EstimationMonth.Storage)
-	}
-	min, max, mean, median := calcStats(l)
-	return &model.Estimation{Min: min, Max: max, Mean: mean, Median: median}, nil
+	tree = buildTree(stats, "label_pipeline_id", "pod", "container")
+
+	return
 }

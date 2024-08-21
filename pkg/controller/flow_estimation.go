@@ -17,65 +17,127 @@
 package controller
 
 import (
-	"regexp"
+	"fmt"
+	"strings"
 	"time"
 
 	parsing_api "github.com/SENERGY-Platform/analytics-flow-engine/pkg/parsing-api"
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
 )
 
-const daysInMonth = 30
+const cacheValid = 1 * time.Hour
 
-func (c *Controller) GetFlowEstimation(authorization string, userid string, flowId string) (estimation *model.Estimation, err error) {
-	var flow parsing_api.Pipeline
+func (c *Controller) GetFlowEstimations(authorization string, userid string, flowIds []string) (estimations []*model.Estimation, err error) {
+	flows := []parsing_api.Pipeline{}
+	allFlowsCached := true
 	c.flowCacheMux.Lock()
-	pipelineCached, ok := c.flowCache[flowId]
-	c.flowCacheMux.Unlock()
-	if ok && pipelineCached.enteredAt.Add(cacheValid).After(time.Now()) {
-		flow = pipelineCached.flow
-	} else {
-		flow, err = c.parsingClient.GetPipeline(flowId, userid, authorization)
+	for _, flowId := range flowIds {
+		// This is also an access check, don't cache across different users
+		flow, err := c.parsingClient.GetPipeline(flowId, userid, authorization)
 		if err != nil {
 			return nil, err
 		}
-		c.flowCacheMux.Lock()
-		c.flowCache[flowId] = flowCacheEntry{flow: flow, enteredAt: time.Now()}
-		c.flowCacheMux.Unlock()
+		flows = append(flows, flow)
+		if allFlowsCached {
+			flowCached, ok := c.flowCache[flowId]
+			if !ok || flowCached.enteredAt.Add(cacheValid).Before(time.Now()) {
+				allFlowsCached = false
+			}
+		}
 	}
-	containerEntries, err := c.getCostContainers24h("", model.CostTypeAnalytics, "")
+
+	if allFlowsCached {
+		for _, flowId := range flowIds {
+			estimations = append(estimations, c.flowCache[flowId].estimation)
+		}
+		c.flowCacheMux.Unlock()
+		return estimations, nil
+	}
+	c.flowCacheMux.Unlock()
+
+	stats, err := c.getPodsMonth(&podStatsFilter{
+		CPU:     true,
+		RAM:     true,
+		Storage: true,
+		podFilter: podFilter{
+			Namespace: &c.config.NamespaceAnalytics,
+		},
+		PredictionBasedOn: &d24h,
+	})
 	if err != nil {
 		return nil, err
 	}
-	estimation = &model.Estimation{}
-	for _, operator := range flow.Operators {
-		c.operatorCacheMux.Lock()
-		cached, ok := c.operatorCache[operator.OperatorId]
-		c.operatorCacheMux.Unlock()
-		var operatorEstimation model.Estimation
-		if ok && cached.enteredAt.Add(cacheValid).After(time.Now()) {
-			operatorEstimation = cached.estimation
-		} else {
-			rgx, err := regexp.Compile("deployment:pipeline-.{37}" + operator.OperatorId + "--.*")
-			if err != nil {
-				return nil, err
-			}
-			operatorEntries := []float64{}
-			for key, containerEntry := range containerEntries {
-				if rgx.MatchString(key) {
-					operatorEntries = append(operatorEntries, containerEntry.Cpu+containerEntry.Ram+containerEntry.Storage)
-				}
-			}
-			min, max, mean, median := calcStats(operatorEntries)
-			operatorEstimation = model.Estimation{Min: min * daysInMonth, Max: max * daysInMonth, Mean: mean * daysInMonth, Median: median * daysInMonth}
-			c.operatorCacheMux.Lock()
-			c.operatorCache[operator.OperatorId] = operatorCacheEntry{estimation: *estimation, enteredAt: time.Now()}
-			c.operatorCacheMux.Unlock()
-		}
 
-		estimation.Min += operatorEstimation.Min
-		estimation.Max += operatorEstimation.Max
-		estimation.Mean += operatorEstimation.Mean
-		estimation.Median += operatorEstimation.Median
+	operatorStats := map[string][]float64{}
+	flowStats := map[string][]float64{}
+	for _, stat := range stats {
+		containerName, ok := stat.Labels["container"]
+		if !ok {
+			flowId, ok := stat.Labels["label_flow_id"]
+			if !ok {
+				return nil, fmt.Errorf("stat is missing container and label_flow_id labels")
+			}
+			l, ok := operatorStats[string(flowId)]
+			if !ok {
+				l = []float64{}
+			}
+			l = append(l, stat.EstimationMonth.Cpu+stat.EstimationMonth.Ram+stat.EstimationMonth.Storage)
+			flowStats[string(flowId)] = l
+		} else {
+			nameParts := strings.Split(string(containerName), "--")
+			if len(nameParts) != 2 {
+				return nil, fmt.Errorf("containerName is not formatted correctly %#v", containerName)
+			}
+			l, ok := operatorStats[nameParts[1]]
+			if !ok {
+				l = []float64{}
+			}
+			l = append(l, stat.EstimationMonth.Cpu+stat.EstimationMonth.Ram+stat.EstimationMonth.Storage)
+			operatorStats[nameParts[1]] = l
+		}
 	}
-	return estimation, nil
+
+	operatorEstimations := map[string]model.Estimation{}
+	for id, stats := range operatorStats {
+		min, max, mean, median := calcStats(stats)
+		operatorEstimation := model.Estimation{Min: min, Max: max, Mean: mean, Median: median}
+		operatorEstimations[id] = operatorEstimation
+	}
+
+	flowEstimations := map[string]model.Estimation{}
+	for id, stats := range flowStats {
+		min, max, mean, median := calcStats(stats)
+		flowEstimation := model.Estimation{Min: min, Max: max, Mean: mean, Median: median}
+		flowEstimations[id] = flowEstimation
+	}
+
+	for _, flow := range flows {
+		estimation := &model.Estimation{}
+		for _, operator := range flow.Operators {
+			operatorEstimation, ok := operatorEstimations[operator.Id]
+			if !ok {
+				continue
+			}
+
+			estimation.Min += operatorEstimation.Min
+			estimation.Max += operatorEstimation.Max
+			estimation.Mean += operatorEstimation.Mean
+			estimation.Median += operatorEstimation.Median
+		}
+		flowEstimation, ok := flowEstimations[flow.FlowId]
+		if ok {
+			estimation.Min += flowEstimation.Min
+			estimation.Max += flowEstimation.Max
+			estimation.Mean += flowEstimation.Mean
+			estimation.Median += flowEstimation.Median
+		}
+		c.flowCacheMux.Lock()
+		c.flowCache[flow.FlowId] = flowCacheEntry{
+			estimation: estimation,
+			enteredAt:  time.Now(),
+		}
+		c.flowCacheMux.Unlock()
+		estimations = append(estimations, estimation)
+	}
+	return estimations, nil
 }

@@ -1,5 +1,5 @@
 /*
- *    Copyright 2023 InfAI (CC SES)
+ *    Copyright 2024 InfAI (CC SES)
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -14,33 +14,34 @@
  *    limitations under the License.
  */
 
-package opencost
+package controller
 
 import (
-	"net/http"
-	"sync"
 	"time"
 
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/configuration"
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
 )
 
-type cacheEntry struct {
-	value      interface{}
-	validUntil time.Time
-}
+func (c *Controller) GetImportsTree(userId string) (tree model.CostWithChildren, err error) {
+	d24h := time.Hour * 24
 
-type Client struct {
-	config       configuration.Config
-	cache        map[string]cacheEntry
-	cacheMux     sync.Mutex
-	httpClient   http.Client
-	pricingModel *model.PricingModel
-}
-
-func NewClient(config configuration.Config) (*Client, error) {
-	httpClient := http.Client{
-		Timeout: 5 * time.Minute,
+	stats, err := c.getPodsMonth(&podStatsFilter{
+		CPU:     true,
+		RAM:     true,
+		Storage: false,
+		podFilter: podFilter{
+			Namespace: &c.config.NamespaceImports,
+			Labels: map[string][]string{
+				"label_user": {userId},
+			},
+		},
+		PredictionBasedOn: &d24h,
+	})
+	if err != nil {
+		return
 	}
-	return &Client{config: config, cache: map[string]cacheEntry{}, cacheMux: sync.Mutex{}, httpClient: httpClient}, nil
+
+	tree = buildTree(stats, "label_import_id")
+
+	return
 }

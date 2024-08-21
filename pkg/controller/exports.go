@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"log"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -43,12 +42,7 @@ func (c *Controller) GetExportsTree(userId string, token string, admin bool) (re
 		Children:           map[string]model.CostWithChildren{},
 	}
 
-	pricingModel, err := c.opencost.GetPricingModel()
-	if err != nil {
-		return result, err
-	}
-
-	hoursInMonthProgressed, timeInMonthRemaining := getMonthTimeInfo()
+	hoursInMonthProgressed, timeInMonthRemaining, hoursInMonthProgressedStr, secondsInMonthRemainingStr, _ := getMonthTimeInfo()
 	var instances serving.Instances
 
 	t := true
@@ -72,9 +66,6 @@ func (c *Controller) GetExportsTree(userId string, token string, admin bool) (re
 	if err != nil {
 		return result, err
 	}
-
-	hoursInMonthProgressedStr := strconv.Itoa(hoursInMonthProgressed)
-	secondsInMonthRemainingStr := strconv.Itoa(int(timeInMonthRemaining.Seconds()))
 
 	tables := []string{}
 
@@ -144,12 +135,12 @@ func (c *Controller) GetExportsTree(userId string, token string, admin bool) (re
 				}
 
 				avgFutureTableSize := (tableSizeBytesEstimation + tableSizeBytes) / 2
-				futureCost := pricingModel.Storage * avgFutureTableSize * timeInMonthRemaining.Hours() / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
+				futureCost := c.pricingModel.Storage * avgFutureTableSize * timeInMonthRemaining.Hours() / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
 				child.CostWithEstimation.EstimationMonth.Storage = child.CostWithEstimation.Month.Storage + futureCost
 				result.CostWithEstimation.EstimationMonth.Storage += child.EstimationMonth.Storage
 			} else {
 				tableSizeByteMap[exportId] = tableSizeBytes
-				child.CostWithEstimation.Month.Storage = pricingModel.Storage * tableSizeBytes * float64(hoursInMonthProgressed) / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
+				child.CostWithEstimation.Month.Storage = c.pricingModel.Storage * tableSizeBytes * float64(hoursInMonthProgressed) / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
 				result.CostWithEstimation.Month.Storage += child.Month.Storage
 			}
 			result.Children[exportId] = child

@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"log"
 	"sync"
 	"time"
 
@@ -26,7 +25,6 @@ import (
 	serving "github.com/SENERGY-Platform/analytics-serving/client"
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/configuration"
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/opencost"
 	permissions "github.com/SENERGY-Platform/permission-search/lib/client"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -34,47 +32,31 @@ import (
 
 var prefetchFn = []func(c *Controller) error{}
 
-type cacheEntry struct {
-	allocation opencost.AllocationResponse
-	enteredAt  time.Time
-}
-
 type operatorCacheEntry struct {
 	estimation model.Estimation
 	enteredAt  time.Time
 }
 
 type flowCacheEntry struct {
-	flow      parsing_api.Pipeline
-	enteredAt time.Time
+	estimation *model.Estimation
+	enteredAt  time.Time
 }
 
 type Controller struct {
-	opencost      *opencost.Client
 	config        configuration.Config
-	cache         map[string]cacheEntry
-	cacheMux      sync.Mutex
 	parsingClient *parsing_api.ParsingApi
-
-	operatorCache    map[string]operatorCacheEntry
-	operatorCacheMux sync.Mutex
-
-	flowCache    map[string]flowCacheEntry
-	flowCacheMux sync.Mutex
-
-	prometheus v1.API
+	flowCache     map[string]flowCacheEntry
+	flowCacheMux  sync.Mutex
+	prometheus    v1.API
 
 	permClient    permissions.Client
 	servingClient *serving.Client
 
-	ready bool
+	pricingModel *model.PricingModel
 }
 
 func NewController(ctx context.Context, conf configuration.Config, fatal func(err error)) (*Controller, error) {
-	opencostClient, err := opencost.NewClient(conf)
-	if err != nil {
-		return nil, err
-	}
+	pricingModel, err := model.GetPricingModel(conf.PricingModelFilePath)
 	prometheusClient, err := api.NewClient(api.Config{
 		Address: conf.PrometheusUrl,
 	})
@@ -85,52 +67,14 @@ func NewController(ctx context.Context, conf configuration.Config, fatal func(er
 	permClient := permissions.NewClient(conf.PermissionsUrl)
 	servingClient := serving.New(conf.ServingUrl)
 
-	controller := &Controller{opencost: opencostClient, config: conf, cache: map[string]cacheEntry{}, cacheMux: sync.Mutex{},
+	controller := &Controller{config: conf,
 		parsingClient: parsing_api.NewParsingApi(conf.AnalyticsParsingUrl),
-		operatorCache: map[string]operatorCacheEntry{}, operatorCacheMux: sync.Mutex{},
-		flowCache: map[string]flowCacheEntry{}, flowCacheMux: sync.Mutex{},
 		prometheus:    v1.NewAPI(prometheusClient),
 		permClient:    permClient,
 		servingClient: servingClient,
-		ready:         false,
+		pricingModel:  &pricingModel,
+		flowCache:     map[string]flowCacheEntry{}, flowCacheMux: sync.Mutex{},
 	}
 
-	if conf.Prefetch {
-		go func() {
-			controller.prefetch(fatal)
-			controller.ready = true
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(5 * time.Minute):
-					controller.prefetch(fatal)
-				}
-			}
-		}()
-	}
 	return controller, nil
-}
-
-func (c *Controller) Ready() bool {
-	return c.ready
-}
-
-func (c *Controller) prefetch(fatal func(err error)) {
-	log.Println("Prefetching...")
-	wg := sync.WaitGroup{}
-	wg.Add(len(prefetchFn))
-	for _, fn := range prefetchFn {
-		fn := fn
-		go func() {
-			err := fn(c)
-			if err != nil {
-				fatal(err)
-				return
-			}
-			wg.Done()
-		}()
-	}
-	wg.Wait()
-	log.Println("Prefetch done!")
 }

@@ -23,7 +23,6 @@ import (
 
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/configuration"
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/controller"
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -39,7 +38,7 @@ func FlowEstimationEndpoint(router *httprouter.Router, config configuration.Conf
 			return
 		}
 		token := getToken(request)
-		overview, err := controller.GetFlowEstimation(token, userId, params.ByName("id"))
+		overview, err := controller.GetFlowEstimations(token, userId, []string{params.ByName("id")})
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 			return
@@ -65,15 +64,10 @@ func FlowEstimationEndpoint(router *httprouter.Router, config configuration.Conf
 			return
 		}
 
-		result := make([]*model.Estimation, len(flowsIds))
-
-		for i, flowId := range flowsIds {
-			flowEstimation, err := controller.GetFlowEstimation(token, userId, flowId)
-			if err != nil {
-				http.Error(writer, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			result[i] = flowEstimation
+		result, err := controller.GetFlowEstimations(token, userId, flowsIds)
+		if err != nil {
+			http.Error(writer, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		writer.Header().Set("Content-Type", "application/json")

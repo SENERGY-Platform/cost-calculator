@@ -66,7 +66,7 @@ func Router(config configuration.Config, controller *controller.Controller) http
 	return util.NewLogger(corsHandler)
 }
 
-func getUserId(config configuration.Config, request *http.Request) (string, bool, error) {
+func getUserId(config configuration.Config, request *http.Request) (userid string, isAdmin bool, err error) {
 	token, err := jwt.GetParsedToken(request)
 	if err != nil {
 		return "", false, err

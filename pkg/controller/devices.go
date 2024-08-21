@@ -48,18 +48,9 @@ func (c *Controller) GetDevicesTree(userId string, token string) (result model.C
 		Children:           map[string]model.CostWithChildren{},
 	}
 
-	pricingModel, err := c.opencost.GetPricingModel()
-	if err != nil {
-		return result, err
-	}
-
-	hoursInMonthProgressed, timeInMonthRemaining := getMonthTimeInfo()
-	hoursInMonthProgressedStr := strconv.Itoa(hoursInMonthProgressed)
-	secondsInMonthRemainingStr := strconv.Itoa(int(timeInMonthRemaining.Seconds()))
+	hoursInMonthProgressed, timeInMonthRemaining, hoursInMonthProgressedStr, secondsInMonthRemainingStr, multiplier := getMonthTimeInfo()
 
 	start, end := getMonthTimeRange()
-	nextMonth := time.Date(start.Year(), start.Month()+1, 0, 0, 0, 0, 0, time.UTC)
-	multiplier := 1 / (float64(end.Sub(start)) / float64(nextMonth.Sub(start)))
 
 	limit := 0
 	found := 0
@@ -191,7 +182,7 @@ func (c *Controller) GetDevicesTree(userId string, token string) (result model.C
 			}
 
 			avgFutureTableSize := (tableSizeBytesEstimation + tableSizeBytes) / 2
-			futureCost := pricingModel.Storage * avgFutureTableSize * timeInMonthRemaining.Hours() / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
+			futureCost := c.pricingModel.Storage * avgFutureTableSize * timeInMonthRemaining.Hours() / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
 			child.CostWithEstimation.EstimationMonth.Storage += futureCost
 			result.CostWithEstimation.EstimationMonth.Storage += futureCost
 		})
@@ -207,7 +198,7 @@ func (c *Controller) GetDevicesTree(userId string, token string) (result model.C
 				existingTableSizeBytes = 0
 			}
 			tableSizeByteMap[table] = existingTableSizeBytes + value
-			additionalCost := pricingModel.Storage * value * float64(hoursInMonthProgressed) / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
+			additionalCost := c.pricingModel.Storage * value * float64(hoursInMonthProgressed) / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
 			child.CostWithEstimation.Month.Storage += additionalCost
 			result.CostWithEstimation.Month.Storage += additionalCost
 			child.CostWithEstimation.EstimationMonth.Storage += additionalCost
@@ -231,14 +222,18 @@ func (c *Controller) GetDevicesTree(userId string, token string) (result model.C
 	return
 }
 
-func getMonthTimeInfo() (int, time.Duration) {
+func getMonthTimeInfo() (hoursInMonthProgressed int, timeInMonthRemaining time.Duration, hoursInMonthProgressedStr string, secondsInMonthRemainingStr string, multiplier float64) {
 	now := time.Now()
-	hoursInMonthProgressed := 0
 	hoursInMonthProgressed += (now.Day() - 1) * 24
 	hoursInMonthProgressed += now.Hour()
 
 	startNextMonth := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC)
-	timeInMonthRemaining := startNextMonth.Sub(now)
+	timeInMonthRemaining = startNextMonth.Sub(now)
 
-	return hoursInMonthProgressed, timeInMonthRemaining
+	hoursInMonthProgressedStr = strconv.Itoa(hoursInMonthProgressed)
+	secondsInMonthRemainingStr = strconv.Itoa(int(timeInMonthRemaining.Seconds()))
+
+	multiplier = 1 / (float64(hoursInMonthProgressed) / (timeInMonthRemaining.Hours() + float64(hoursInMonthProgressed)))
+
+	return hoursInMonthProgressed, timeInMonthRemaining, hoursInMonthProgressedStr, secondsInMonthRemainingStr, multiplier
 }

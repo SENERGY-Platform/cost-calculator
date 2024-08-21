@@ -18,176 +18,29 @@ package controller
 
 import (
 	"errors"
-	"strings"
 	"sync"
 
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/opencost"
 )
 
-func init() {
-	prefetchFn = append(prefetchFn, GetPrefetchAllocationFunction(opencost.AllocationOptions{
-		Window:    "month",
-		Aggregate: "label:user,namespace",
-	}))
-	prefetchFn = append(prefetchFn, GetPrefetchAllocationFunction(opencost.AllocationOptions{
-		Window:    "month",
-		Aggregate: "label:user,namespace,controller",
-	}))
-	prefetchFn = append(prefetchFn, GetPrefetchAllocationFunction(opencost.AllocationOptions{
-		Window:    "month",
-		Aggregate: "label:user,namespace,controller,container",
-	}))
-}
-
-func (c *Controller) GetCostOverview(userid string) (res model.CostOverview, err error) {
-	allocation, err := c.GetCachedAllocation(opencost.AllocationOptions{
-		Window:    "month",
-		Aggregate: "label:user,namespace",
-	})
-	if err != nil {
-		return nil, err
-	}
-	l24hEntries, err := c.getCostOverview24h(userid)
-	if err != nil {
-		return nil, err
-	}
-
-	res = model.CostOverview{}
-	for key, allo := range allocation.Data[0] {
-		if key == userid+"/"+c.config.NamespaceAnalytics {
-			month := model.CostEntry{
-				Cpu:     allo.CpuCost,
-				Ram:     allo.RamCost,
-				Storage: allo.PvCost,
-			}
-			l24hEntry, ok := l24hEntries[model.CostTypeAnalytics]
-			if !ok {
-				l24hEntry = model.CostEntry{}
-			}
-			estimationMonth := predict(month, l24hEntry)
-			res[model.CostTypeAnalytics] = model.CostWithEstimation{
-				Month:           month,
-				EstimationMonth: estimationMonth,
-			}
-		} else if key == userid+"/"+c.config.NamespaceImports {
-			month := model.CostEntry{
-				Cpu:     allo.CpuCost,
-				Ram:     allo.RamCost,
-				Storage: allo.PvCost,
-			}
-			l24hEntry, ok := l24hEntries[model.CostTypeImports]
-			if !ok {
-				l24hEntry = model.CostEntry{}
-			}
-			estimationMonth := predict(month, l24hEntry)
-			res[model.CostTypeImports] = model.CostWithEstimation{
-				Month:           month,
-				EstimationMonth: estimationMonth,
-			}
-		}
-	}
-	return res, nil
-}
-
-func (c *Controller) GetCostContainers(userid string, costType model.CostType, controllerName string) (res model.CostContainers, err error) {
-	var prefix string
+func (c *Controller) GetCostControllers(userid string, token string, admin bool, costType model.CostType) (res model.CostWithChildren, err error) {
 	switch costType {
 	case model.CostTypeAnalytics:
-		prefix = userid + "/" + c.config.NamespaceAnalytics + "/" + controllerName + "/"
+		return c.GetAnalyticsTree(userid)
 	case model.CostTypeImports:
-		prefix = userid + "/" + c.config.NamespaceImports + "/" + controllerName + "/"
+		return c.GetImportsTree(userid)
+	case model.CostTypeProcesses:
+		return c.GetProcessTree(userid)
+	case model.CostTypeApiCalls:
+		return c.GetApiCallsTree(userid)
+	case model.CostTypeDevices:
+		return c.GetDevicesTree(userid, token)
+	case model.CostTypeExports:
+		return c.GetExportsTree(userid, token, admin)
 	default:
-		return nil, errors.New("unknown costType")
+		return res, errors.New("unknown costType")
 	}
 
-	allocation, err := c.GetCachedAllocation(opencost.AllocationOptions{
-		Window:    "month",
-		Aggregate: "label:user,namespace,controller,container",
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	l24hEntries, err := c.getCostContainers24h(userid, costType, controllerName)
-	if err != nil {
-		return nil, err
-	}
-
-	res = model.CostContainers{}
-	for key, allo := range allocation.Data[0] {
-		if strings.HasPrefix(key, prefix) {
-			month := model.CostEntry{
-				Cpu:     allo.CpuCost,
-				Ram:     allo.RamCost,
-				Storage: allo.PvCost,
-			}
-			l24hEntry, ok := l24hEntries[strings.TrimPrefix(key, prefix)]
-			if !ok {
-				l24hEntry = model.CostEntry{}
-			}
-			estimationMonth := predict(month, l24hEntry)
-			res[strings.TrimPrefix(key, prefix)] = model.CostWithEstimation{
-				Month:           month,
-				EstimationMonth: estimationMonth,
-			}
-		}
-	}
-	return res, nil
-}
-
-func (c *Controller) GetCostControllers(userid string, costType model.CostType) (res model.CostControllers, err error) {
-	var prefix string
-	switch costType {
-	case model.CostTypeAnalytics:
-		prefix = userid + "/" + c.config.NamespaceAnalytics + "/"
-	case model.CostTypeImports:
-		prefix = userid + "/" + c.config.NamespaceImports + "/"
-	default:
-		return nil, errors.New("unknown costType")
-	}
-
-	return c.GetCostControllersWithFilter(func(key string, allo opencost.AllocationEntry) (use bool, newName string) {
-		return strings.HasPrefix(key, prefix), strings.TrimPrefix(key, prefix)
-	})
-}
-
-type FilterFuncType = func(key string, allo opencost.AllocationEntry) (use bool, newName string)
-
-func (c *Controller) GetCostControllersWithFilter(filter FilterFuncType) (res model.CostControllers, err error) {
-	allocation, err := c.GetCachedAllocation(opencost.AllocationOptions{
-		Window:    "month",
-		Aggregate: "label:user,namespace,controller",
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	l24hEntries, err := c.getCostControllers24hWithFilter(filter)
-	if err != nil {
-		return nil, err
-	}
-
-	res = model.CostControllers{}
-	for key, allo := range allocation.Data[0] {
-		if use, newName := filter(key, allo); use {
-			month := model.CostEntry{
-				Cpu:     allo.CpuCost,
-				Ram:     allo.RamCost,
-				Storage: allo.PvCost,
-			}
-			l24hEntry, ok := l24hEntries[newName]
-			if !ok {
-				l24hEntry = model.CostEntry{}
-			}
-			estimationMonth := predict(month, l24hEntry)
-			res[newName] = model.CostWithEstimation{
-				Month:           month,
-				EstimationMonth: estimationMonth,
-			}
-		}
-	}
-	return res, nil
 }
 
 func (c *Controller) GetCostTree(userid string, token string, admin bool) (res model.CostTree, err error) {
@@ -199,62 +52,41 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool) (res m
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		overview, err := c.GetCostOverview(userid)
+		analyticsTree, err := c.GetAnalyticsTree(userid)
 		if err != nil {
 			superErr = err
 			return
 		}
-		for costType, value := range overview {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				controllers, err := c.GetCostControllers(userid, costType)
-				if err != nil {
-					superErr = err
-					return
-				}
-				controllerTree := model.CostTree{}
-				for controllerName, controllerCost := range controllers {
-					containers, err := c.GetCostContainers(userid, costType, controllerName)
-					if err != nil {
-						superErr = err
-						return
-					}
-					containerTree := model.CostTree{}
-					for containerName, containerCost := range containers {
-						containerTree[containerName] = model.CostWithChildren{
-							CostWithEstimation: containerCost,
-						}
-					}
-					controllerTree[controllerName] = model.CostWithChildren{
-						CostWithEstimation: controllerCost,
-						Children:           containerTree,
-					}
-				}
-				mux.Lock()
-				res[costType] = model.CostWithChildren{
-					CostWithEstimation: value,
-					Children:           controllerTree,
-				}
-				mux.Unlock()
-			}()
+		if analyticsTree.Month.Cpu != 0 || analyticsTree.Month.Ram != 0 || analyticsTree.Month.Storage != 0 {
+			res[model.CostTypeAnalytics] = analyticsTree
 		}
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		processCost, err := c.GetProcessTree(userid)
+		importsTree, err := c.GetImportsTree(userid)
 		if err != nil {
 			superErr = err
 			return
 		}
-		for key, value := range processCost {
-			if value.Month.Cpu != 0 || value.Month.Ram != 0 || value.Month.Storage != 0 {
-				mux.Lock()
-				res[key] = value
-				mux.Unlock()
-			}
+		if importsTree.Month.Cpu != 0 || importsTree.Month.Ram != 0 || importsTree.Month.Storage != 0 {
+			res[model.CostTypeImports] = importsTree
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		processTree, err := c.GetProcessTree(userid)
+		if err != nil {
+			superErr = err
+			return
+		}
+		if processTree.Month.Cpu != 0 || processTree.Month.Ram != 0 || processTree.Month.Storage != 0 {
+			mux.Lock()
+			res[model.CostTypeProcesses] = processTree
+			mux.Unlock()
 		}
 	}()
 
@@ -271,7 +103,7 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool) (res m
 			return
 		}
 		if apiCallsTree.Month.Requests != 0 {
-			res["API Calls"] = apiCallsTree
+			res[model.CostTypeApiCalls] = apiCallsTree
 		}
 	}()
 

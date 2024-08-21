@@ -1,32 +1,24 @@
 {
   "api_port": "8080",
-  "opencost_url": "http://opencost.opencost:9003",
   "namespace_analytics": "analytics-pipelines",
   "namespace_imports": "import-container",
   "analytics_parsing_url":"https://api.senergy.infai.org/analytics/flow-parser/v2",
-  "prefetch": true,
   "debug": true,
 
-  "process_cost_sources": [
-    "__unallocated__/process-task-worker/deployment:memcached",
-    "__unallocated__/process-task-worker/deployment:optimistic-worker",
-    "__unallocated__/process-task-worker/deployment:pessimistic-worker",
-    "__unallocated__/process-engine/deployment:engine",
-    "__unallocated__/process-engine/deployment:wrapper",
-    "__unallocated__/process-engine/statefulset:engine-db",
-    "__unallocated__/process-engine/statefulset:wrapper-db"
-  ],
+  "process_cost_sources" : {
+    "process-task-worker": ["memcached.*", "optimistic-worker.*", "pessimistic-worker.*"],
+    "process-engine": ["engine.*", "wrapper.*", "engine-db.*", "wrapper-db.*"]
+  },
 
-  "marshalling_cost_sources": [
-    "__unallocated__/marshalling/deployment:converter",
-    "__unallocated__/marshalling/deployment:marshaller"
-  ],
+  "marshalling_cost_sources": {
+    "marshalling": ["converter.*", "marshaller.*"]
+  },
 
-  "process_io_cost_sources": [
-    "__unallocated__/process-io/deployment:api",
-    "__unallocated__/process-io/statefulset:db",
-    "__unallocated__/process-task-worker/deployment:io-worker"
-  ],
+  "process_io_cost_sources": {
+    "process-io": ["api.*", "db.*"],
+    "process-task-worker": ["io-worker"]
+
+  },
 
   "prometheus_url": "",
   "user_process_cost_fraction_query": "scalar(sum(increase( external_task_worker_task_command_send_count_vec{user_id=\"$user_id\"}[$__range]))) / scalar(sum(increase( external_task_worker_task_command_send_count_vec[$__range])))",
@@ -36,13 +28,14 @@
   "user_process_io_cost_fraction_query": "(scalar(sum(increase(process_io_api_writes_size_sum{user_id=\"$user_id\"}[$__range]))) + scalar(sum(increase(process_io_api_read_size_sum{user_id=\"$user_id\"}[$__range])))) / (scalar(sum(increase(process_io_api_writes_size_sum[$__range]))) + scalar(sum(increase(process_io_api_read_size_sum[$__range]))))",
 
   "process_cost_source_to_instance_id_placeholder_for_process_def_cost_fraction": {
-    "__unallocated__/process-task-worker/deployment:optimistic-worker": "optimistic-worker-metrics",
-    "__unallocated__/process-task-worker/deployment:pessimistic-worker": "pessimistic-worker-metrics"
+    "optimistic-worker": "optimistic-worker-metrics",
+    "pessimistic-worker": "pessimistic-worker-metrics"
   },
 
   "permissions_url": "http://query.permissions:8080",
   "pricing_model_file_path": "pricing_model.json",
   "user_management_url": "http://api.user-management:8080",
   "serving_url": "http://api.analytics-serving:8000",
-  "serving_timescale_configured_url": "senergy/timescaledb"
+  "serving_timescale_configured_url": "senergy/timescaledb",
+  "custom_prometheus_labels": "label_user,label_flow_id,label_import_id,label_import_type_id,label_pipeline_id"
 }

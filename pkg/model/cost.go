@@ -22,10 +22,17 @@ type CostWithEstimation struct {
 }
 
 type CostEntry struct {
-	Cpu      float64 `json:"cpu"`
-	Ram      float64 `json:"ram"`
-	Storage  float64 `json:"storage"`
-	Requests float64 `json:"requests"`
+	Cpu      float64 `json:"cpu,omitempty"`
+	Ram      float64 `json:"ram,omitempty"`
+	Storage  float64 `json:"storage,omitempty"`
+	Requests float64 `json:"requests,omitempty"`
+}
+
+func (a *CostEntry) Add(b CostEntry) {
+	a.Cpu += b.Cpu
+	a.Ram += b.Ram
+	a.Storage += b.Storage
+	a.Requests += b.Requests
 }
 
 type CostOverview = map[CostType]CostWithEstimation
@@ -36,10 +43,10 @@ type CostType = string
 
 const CostTypeAnalytics CostType = "analytics"
 const CostTypeImports CostType = "imports"
-
-type CostContainers = map[string]CostWithEstimation
-
-type CostContainerEntries = map[string]CostEntry
+const CostTypeApiCalls CostType = "API Calls"
+const CostTypeExports CostType = "Exports"
+const CostTypeDevices CostType = "Devices"
+const CostTypeProcesses CostType = "process"
 
 type CostControllers = map[string]CostWithEstimation
 
@@ -47,7 +54,12 @@ type CostControllerEntries = map[string]CostEntry
 
 type CostWithChildren struct {
 	CostWithEstimation
-	Children map[string]CostWithChildren `json:"children"`
+	Children map[string]CostWithChildren `json:"children,omitempty"`
 }
 
 type CostTree map[string]CostWithChildren
+
+func (a *CostWithEstimation) Add(b CostWithEstimation) {
+	a.Month.Add(b.Month)
+	a.EstimationMonth.Add(b.EstimationMonth)
+}

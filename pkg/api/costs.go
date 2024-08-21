@@ -31,49 +31,14 @@ func init() {
 }
 
 func CostsEndpoint(router *httprouter.Router, config configuration.Config, controller *controller.Controller) {
-	router.GET("/costs", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		userId, _, err := getUserId(config, request)
+	router.GET("/tree/:costType", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
+		userId, admin, err := getUserId(config, request)
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusBadRequest)
 			return
 		}
-		overview, err := controller.GetCostOverview(userId)
-		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		writer.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(writer).Encode(overview)
-		if err != nil {
-			fmt.Println("ERROR: " + err.Error())
-		}
-	})
-
-	router.GET("/costs/:costType", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		userId, _, err := getUserId(config, request)
-		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
-			return
-		}
-		overview, err := controller.GetCostControllers(userId, params.ByName("costType"))
-		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		writer.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(writer).Encode(overview)
-		if err != nil {
-			fmt.Println("ERROR: " + err.Error())
-		}
-	})
-
-	router.GET("/costs/:costType/:controller", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		userId, _, err := getUserId(config, request)
-		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
-			return
-		}
-		overview, err := controller.GetCostContainers(userId, params.ByName("costType"), params.ByName("controller"))
+		token := getToken(request)
+		overview, err := controller.GetCostControllers(userId, token, admin, params.ByName("costType"))
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 			return
@@ -105,10 +70,6 @@ func CostsEndpoint(router *httprouter.Router, config configuration.Config, contr
 	})
 
 	router.GET("/health", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		if !controller.Ready() {
-			http.Error(writer, "not ready", http.StatusServiceUnavailable)
-			return
-		}
 		http.NoBody.WriteTo(writer)
 	})
 }

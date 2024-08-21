@@ -24,21 +24,10 @@ import (
 	"time"
 
 	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/opencost"
+	prometheus_model "github.com/prometheus/common/model"
 )
 
-const cacheValid = time.Duration(15 * time.Minute)
 const minutesInDay = 24 * 60
-
-func validateAllocation(allocation *opencost.AllocationResponse) error {
-	if allocation.Code != http.StatusOK {
-		return errors.New("unexpected upstream statuscode")
-	}
-	if len(allocation.Data) != 1 {
-		return errors.New("unexpected upstream response")
-	}
-	return nil
-}
 
 func predict(base model.CostEntry, l24h model.CostEntry) model.CostEntry {
 	now := time.Now().UTC()
@@ -87,4 +76,70 @@ func (c *Controller) getUsername(userId string) (username string, err error) {
 		return
 	}
 	return
+}
+
+type costWithChildrenAndStats struct {
+	stats    []podStat
+	children map[string]costWithChildrenAndStats
+	model.CostWithEstimation
+}
+
+func (c *costWithChildrenAndStats) toModelCostWithChildrenAndStats() (m model.CostWithChildren) {
+	m = model.CostWithChildren{
+		CostWithEstimation: c.CostWithEstimation,
+		Children:           map[string]model.CostWithChildren{},
+	}
+	for k, v := range c.children {
+		m.Children[k] = v.toModelCostWithChildrenAndStats()
+	}
+	return m
+}
+
+func buildTree(stats []podStat, labels ...string) (tree model.CostWithChildren) {
+	t := _buildTree(stats, labels...)
+	return t.toModelCostWithChildrenAndStats()
+}
+
+func _buildTree(stats []podStat, labels ...string) (tree costWithChildrenAndStats) {
+	// make tree
+	// put all stats in tree based on first label
+	// for all remaining labels
+	//	make tree based on that label
+	tree = costWithChildrenAndStats{
+		stats:    []podStat{},
+		children: map[string]costWithChildrenAndStats{},
+		CostWithEstimation: model.CostWithEstimation{
+			Month:           model.CostEntry{},
+			EstimationMonth: model.CostEntry{},
+		},
+	}
+	if len(labels) == 0 {
+		for _, child := range stats {
+			tree.CostWithEstimation.Add(child.CostWithEstimation)
+		}
+		return tree
+	}
+	for _, stat := range stats {
+		labelValue, ok := stat.Labels[prometheus_model.LabelName(labels[0])]
+		if !ok {
+			// Element can't be grouped further, add costs on this level
+			tree.CostWithEstimation.Add(stat.CostWithEstimation)
+			continue
+		}
+		children, ok := tree.children[string(labelValue)]
+		if !ok {
+			children = costWithChildrenAndStats{
+				stats:    []podStat{},
+				children: map[string]costWithChildrenAndStats{},
+			}
+		}
+		children.stats = append(children.stats, stat)
+		tree.children[string(labelValue)] = children
+		tree.CostWithEstimation.Add(stat.CostWithEstimation)
+	}
+	for k, v := range tree.children {
+		tree.children[k] = _buildTree(v.stats, labels[1:]...)
+	}
+
+	return tree
 }
