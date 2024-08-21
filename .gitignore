@@ -3,4 +3,5 @@
 __debug*
 .vscode
 opencost-wrapper
+cost-calculator
 pricing_model.json

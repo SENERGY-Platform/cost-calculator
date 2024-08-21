@@ -25,8 +25,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg"
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/configuration"
+	"github.com/SENERGY-Platform/cost-calculator/pkg"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
 )
 
 func main() {

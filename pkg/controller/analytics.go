@@ -19,7 +19,7 @@ package controller
 import (
 	"time"
 
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 )
 
 var d24h = time.Hour * 24

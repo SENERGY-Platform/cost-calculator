@@ -26,9 +26,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/api/util"
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/configuration"
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/controller"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/api/util"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/controller"
 	"github.com/SENERGY-Platform/service-commons/pkg/jwt"
 	"github.com/julienschmidt/httprouter"
 )

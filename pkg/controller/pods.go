@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	prometheus_model "github.com/prometheus/common/model"
 	"golang.org/x/exp/maps"

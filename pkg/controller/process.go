@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 	prometheus_model "github.com/prometheus/common/model"
 )
 

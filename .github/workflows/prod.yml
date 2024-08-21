@@ -44,9 +44,9 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            smartenergyplatform/opencost-wrapper:prod
-            ghcr.io/senergy-platform/opencost-wrapper:prod
-            smartenergyplatform/opencost-wrapper:${{ steps.tag_version.outputs.new_tag }}
-            ghcr.io/senergy-platform/opencost-wrapper:${{ steps.tag_version.outputs.new_tag }}
-            smartenergyplatform/opencost-wrapper:latest
-            ghcr.io/senergy-platform/opencost-wrapper:latest
+            smartenergyplatform/cost-calculator:prod
+            ghcr.io/senergy-platform/cost-calculator:prod
+            smartenergyplatform/cost-calculator:${{ steps.tag_version.outputs.new_tag }}
+            ghcr.io/senergy-platform/cost-calculator:${{ steps.tag_version.outputs.new_tag }}
+            smartenergyplatform/cost-calculator:latest
+            ghcr.io/senergy-platform/cost-calculator:latest

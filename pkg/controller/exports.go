@@ -25,8 +25,8 @@ import (
 	"time"
 
 	serving "github.com/SENERGY-Platform/analytics-serving/client"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 	"github.com/SENERGY-Platform/models/go/models"
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
 	prometheus_model "github.com/prometheus/common/model"
 )
 

@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/configuration"
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/controller"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/controller"
 	"github.com/julienschmidt/httprouter"
 )
 

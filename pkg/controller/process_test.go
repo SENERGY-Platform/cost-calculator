@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/configuration"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
 )
 
 func TestGetCostTree(t *testing.T) {

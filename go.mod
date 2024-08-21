@@ -1,4 +1,4 @@
-module github.com/SENERGY-Platform/opencost-wrapper
+module github.com/SENERGY-Platform/cost-calculator
 
 go 1.23.0
 

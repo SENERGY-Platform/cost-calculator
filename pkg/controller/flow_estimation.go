@@ -22,7 +22,7 @@ import (
 	"time"
 
 	parsing_api "github.com/SENERGY-Platform/analytics-flow-engine/pkg/parsing-api"
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 )
 
 const cacheValid = 1 * time.Hour

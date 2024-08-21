@@ -20,7 +20,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 )
 
 func (c *Controller) GetCostControllers(userid string, token string, admin bool, costType model.CostType) (res model.CostWithChildren, err error) {

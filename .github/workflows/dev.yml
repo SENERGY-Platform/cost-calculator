@@ -35,6 +35,6 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            smartenergyplatform/opencost-wrapper:dev
-            ghcr.io/senergy-platform/opencost-wrapper:dev
+            smartenergyplatform/cost-calculator:dev
+            ghcr.io/senergy-platform/cost-calculator:dev
 

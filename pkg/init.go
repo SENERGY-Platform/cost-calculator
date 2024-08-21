@@ -18,9 +18,10 @@ package pkg
 
 import (
 	"context"
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/api"
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/configuration"
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/controller"
+
+	"github.com/SENERGY-Platform/cost-calculator/pkg/api"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/controller"
 
 	"sync"
 )

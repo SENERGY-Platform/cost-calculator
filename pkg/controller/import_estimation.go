@@ -19,7 +19,7 @@ package controller
 import (
 	"strings"
 
-	"github.com/SENERGY-Platform/opencost-wrapper/pkg/model"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 )
 
 func (c *Controller) GetImportEstimation(authorization string, userid string, importTypeId string) (estimation *model.Estimation, err error) {
