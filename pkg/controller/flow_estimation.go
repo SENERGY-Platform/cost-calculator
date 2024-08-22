@@ -55,11 +55,11 @@ func (c *Controller) GetFlowEstimations(authorization string, userid string, flo
 	}
 	c.flowCacheMux.Unlock()
 
-	stats, err := c.getPodsMonth(&podStatsFilter{
+	stats, err := c.getStats(&statsFilter{
 		CPU:     true,
 		RAM:     true,
 		Storage: true,
-		podFilter: podFilter{
+		filter: filter{
 			Namespace: &c.config.NamespaceAnalytics,
 		},
 		PredictionBasedOn: &d24h,
@@ -99,14 +99,14 @@ func (c *Controller) GetFlowEstimations(authorization string, userid string, flo
 
 	operatorEstimations := map[string]model.Estimation{}
 	for id, stats := range operatorStats {
-		min, max, mean, median := calcStats(stats)
+		min, max, mean, median := calcMinMaxMeanMedian(stats)
 		operatorEstimation := model.Estimation{Min: min, Max: max, Mean: mean, Median: median}
 		operatorEstimations[id] = operatorEstimation
 	}
 
 	flowEstimations := map[string]model.Estimation{}
 	for id, stats := range flowStats {
-		min, max, mean, median := calcStats(stats)
+		min, max, mean, median := calcMinMaxMeanMedian(stats)
 		flowEstimation := model.Estimation{Min: min, Max: max, Mean: mean, Median: median}
 		flowEstimations[id] = flowEstimation
 	}

@@ -21,13 +21,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 )
 
 type Client interface {
-	GetTree(token string, skipEstimation bool) (model.CostTree, error)
-	GetSubTree(token string, costType model.CostType, skipEstimation bool) (model.CostTree, error)
+	GetTree(token string, skipEstimation bool, start *time.Time, end *time.Time) (model.CostTree, error)
+	GetSubTree(token string, costType model.CostType, skipEstimation bool, start *time.Time, end *time.Time) (model.CostTree, error)
 	GetFlowEstimation(token string, flowId string) (model.Estimation, error)
 	GetFlowEstimations(token string, flowIds []string) ([]model.Estimation, error)
 	GetImportEstimation(token string, importTypeId string) (model.Estimation, error)

@@ -28,8 +28,15 @@ import (
 	prometheus_model "github.com/prometheus/common/model"
 )
 
-func (c *Controller) GetApiCallsTree(username string, skipEstimation bool) (result model.CostWithChildren, err error) {
+func (c *Controller) GetApiCallsTree(username string, skipEstimation bool, start *time.Time, end *time.Time) (result model.CostWithChildren, err error) {
 	timer := time.Now()
+
+	if (start == nil && end != nil) || (start != nil && end == nil) || (start != nil && !skipEstimation) {
+		return result, fmt.Errorf("must not provide only one of start or end. must not provide start and stop without skipEstimation")
+	}
+	if start == nil {
+		start, end = defaultStartEnd()
+	}
 	result = model.CostWithChildren{
 		CostWithEstimation: model.CostWithEstimation{
 			EstimationMonth: model.CostEntry{},
@@ -37,14 +44,13 @@ func (c *Controller) GetApiCallsTree(username string, skipEstimation bool) (resu
 		},
 		Children: map[string]model.CostWithChildren{},
 	}
-	start, end := getMonthTimeRange()
-	nextMonth := time.Date(start.Year(), start.Month()+1, 0, 0, 0, 0, 0, time.UTC)
-	multiplier := 1 / (float64(end.Sub(start)) / float64(nextMonth.Sub(start)))
+	nextMonth := time.Date(start.Year(), start.Month()+1, 0, 0, 0, 0, 0, time.UTC) // this is okay, because multiplier is only used in estimations, and estimations with start and stop set are not allowed
+	multiplier := 1 / (float64(end.Sub(*start)) / float64(nextMonth.Sub(*start)))
 
 	clientPrefix := username + "_"
-	query := "round(sum by (exported_service, consumer) (increase(kong_http_requests_total{consumer=~\"" + clientPrefix + ".*\"}[" + end.Sub(start).Round(time.Second).String() + "]))) != 0"
+	query := "round(sum by (exported_service, consumer) (increase(kong_http_requests_total{consumer=~\"" + clientPrefix + ".*\"}[" + end.Sub(*start).Round(time.Second).String() + "]))) != 0"
 
-	resp, w, err := c.prometheus.Query(context.Background(), query, end)
+	resp, w, err := c.prometheus.Query(context.Background(), query, *end)
 	if err != nil {
 		return result, err
 	}

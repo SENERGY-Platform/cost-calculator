@@ -19,12 +19,20 @@ package client
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 )
 
-func (c *impl) GetTree(token string, skipEstimation bool) (model.CostTree, error) {
-	req, err := http.NewRequest(http.MethodGet, c.baseUrl+"/tree?skip_estimation="+strconv.FormatBool(skipEstimation), nil)
+func (c *impl) GetTree(token string, skipEstimation bool, start *time.Time, end *time.Time) (model.CostTree, error) {
+	url := c.baseUrl + "/tree?skip_estimation=" + strconv.FormatBool(skipEstimation)
+	if start != nil {
+		url += "&start=" + start.Format(time.RFC3339)
+	}
+	if end != nil {
+		url += "&end=" + end.Format(time.RFC3339)
+	}
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	req.Header.Set("Authorization", token)
 	if err != nil {
 		return nil, err
@@ -32,8 +40,15 @@ func (c *impl) GetTree(token string, skipEstimation bool) (model.CostTree, error
 	return do[model.CostTree](req)
 }
 
-func (c *impl) GetSubTree(token string, costType model.CostType, skipEstimation bool) (model.CostTree, error) {
-	req, err := http.NewRequest(http.MethodGet, c.baseUrl+"/tree/"+costType+"?skip_estimation="+strconv.FormatBool(skipEstimation), nil)
+func (c *impl) GetSubTree(token string, costType model.CostType, skipEstimation bool, start *time.Time, end *time.Time) (model.CostTree, error) {
+	url := c.baseUrl + "/tree/" + costType + "?skip_estimation=" + strconv.FormatBool(skipEstimation)
+	if start != nil {
+		url += "&start=" + start.Format(time.RFC3339)
+	}
+	if end != nil {
+		url += "&end=" + end.Format(time.RFC3339)
+	}
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	req.Header.Set("Authorization", token)
 	if err != nil {
 		return nil, err

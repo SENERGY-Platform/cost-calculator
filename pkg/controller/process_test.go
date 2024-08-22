@@ -49,7 +49,7 @@ func TestGetCostTree(t *testing.T) {
 		return
 	}
 
-	result, err := ctrl.GetProcessTree(userId, false)
+	result, err := ctrl.GetProcessTree(userId, false, nil, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -87,9 +87,9 @@ func TestGetUserProcessFactor(t *testing.T) {
 		return
 	}
 
-	start, end := getMonthTimeRange()
+	start, end := defaultStartEnd()
 
-	t.Log(ctrl.getUserProcessFactor(userId, start, end))
+	t.Log(ctrl.getUserProcessFactor(userId, *start, *end))
 }
 
 func TestGetProcessDefinitionFactor(t *testing.T) {
@@ -115,9 +115,9 @@ func TestGetProcessDefinitionFactor(t *testing.T) {
 		return
 	}
 
-	start, end := getMonthTimeRange()
+	start, end := defaultStartEnd()
 
-	t.Log(ctrl.getProcessDefinitionFactors("__unallocated__/process-task-worker/deployment:pessimistic-worker", userId, start, end))
+	t.Log(ctrl.getProcessDefinitionFactors("__unallocated__/process-task-worker/deployment:pessimistic-worker", userId, *start, *end))
 }
 
 func TestGetProcessDefinitionFactorFactor(t *testing.T) {

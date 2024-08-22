@@ -30,8 +30,16 @@ import (
 	prometheus_model "github.com/prometheus/common/model"
 )
 
-func (c *Controller) GetProcessTree(userId string, skipEstimation bool) (processCost model.CostWithChildren, err error) {
+func (c *Controller) GetProcessTree(userId string, skipEstimation bool, start *time.Time, end *time.Time) (processCost model.CostWithChildren, err error) {
 	timer := time.Now()
+
+	if (start == nil && end != nil) || (start != nil && end == nil) || (start != nil && !skipEstimation) {
+		return processCost, fmt.Errorf("must not provide only one of start or end. must not provide start and stop without skipEstimation")
+	}
+	if start == nil {
+		start, end = defaultStartEnd()
+	}
+
 	processCost = model.CostWithChildren{
 		CostWithEstimation: model.CostWithEstimation{
 			Month:           model.CostEntry{},
@@ -40,9 +48,8 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool) (process
 		Children: map[string]model.CostWithChildren{},
 	}
 
-	start, end := getMonthTimeRange()
 	timer2 := time.Now()
-	userProcessFactor, err := c.getUserProcessFactor(userId, start, end)
+	userProcessFactor, err := c.getUserProcessFactor(userId, *start, *end)
 	if err != nil {
 		return processCost, err
 	}
@@ -50,11 +57,11 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool) (process
 
 	if userProcessFactor > 0 {
 		for k, v := range c.config.ProcessCostSources {
-			filter := &podStatsFilter{
+			filter := &statsFilter{
 				CPU:     true,
 				RAM:     true,
 				Storage: true,
-				podFilter: podFilter{
+				filter: filter{
 					Namespace: &k,
 					Labels: map[string][]string{
 						"pod": v,
@@ -64,7 +71,7 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool) (process
 			if !skipEstimation {
 				filter.PredictionBasedOn = &d24h
 			}
-			stats, err := c.getPodsMonth(filter)
+			stats, err := c.getStats(filter)
 			if err != nil {
 				return processCost, err
 			}
@@ -120,7 +127,7 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool) (process
 					processCost.EstimationMonth.Storage = processCost.EstimationMonth.Storage + child.EstimationMonth.Storage
 				}
 
-				processDefinitionFactors, err := c.getProcessDefinitionFactors(name, userId, start, end)
+				processDefinitionFactors, err := c.getProcessDefinitionFactors(name, userId, *start, *end)
 				if err != nil {
 					return processCost, err
 				}
@@ -153,11 +160,11 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool) (process
 
 	marshallerCostTotal := model.CostWithEstimation{}
 	for k, v := range c.config.MarshallingCostSources {
-		filter := &podStatsFilter{
+		filter := &statsFilter{
 			CPU:     true,
 			RAM:     true,
 			Storage: true,
-			podFilter: podFilter{
+			filter: filter{
 				Namespace: &k,
 				Labels: map[string][]string{
 					"pod": v,
@@ -167,7 +174,7 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool) (process
 		if !skipEstimation {
 			filter.PredictionBasedOn = &d24h
 		}
-		stats, err := c.getPodsMonth(filter)
+		stats, err := c.getStats(filter)
 		if err != nil {
 			return processCost, err
 		}
@@ -176,7 +183,7 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool) (process
 	}
 
 	timer2 = time.Now()
-	userMarshallerFactor, err := c.getUserMarshallerFactor(userId, start, end)
+	userMarshallerFactor, err := c.getUserMarshallerFactor(userId, *start, *end)
 	if err != nil {
 		return processCost, err
 	}
@@ -184,7 +191,7 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool) (process
 
 	if userMarshallerFactor > 0 {
 		timer2 = time.Now()
-		processMarshallerFactor, err := c.getProcessMarshallerFactor(start, end)
+		processMarshallerFactor, err := c.getProcessMarshallerFactor(*start, *end)
 		if err != nil {
 			return processCost, err
 		}
@@ -221,7 +228,7 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool) (process
 	}
 
 	timer2 = time.Now()
-	userProcessIoFactor, err := c.getUserProcessIoFactor(userId, start, end)
+	userProcessIoFactor, err := c.getUserProcessIoFactor(userId, *start, *end)
 	if err != nil {
 		return processCost, err
 	}
@@ -229,21 +236,23 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool) (process
 	if userProcessIoFactor != 0 {
 		processIoCostTotal := model.CostWithEstimation{}
 		for k, v := range c.config.ProcessIoCostSources {
-			filter := &podStatsFilter{
+			filter := &statsFilter{
 				CPU:     true,
 				RAM:     true,
 				Storage: true,
-				podFilter: podFilter{
+				filter: filter{
 					Namespace: &k,
 					Labels: map[string][]string{
 						"pod": v,
 					},
+					Start: start,
+					End:   end,
 				},
 			}
 			if !skipEstimation {
 				filter.PredictionBasedOn = &d24h
 			}
-			stats, err := c.getPodsMonth(filter)
+			stats, err := c.getStats(filter)
 			if err != nil {
 				return processCost, err
 			}
@@ -273,13 +282,6 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool) (process
 	c.logDebug("ProcessTree " + time.Since(timer).String())
 
 	return processCost, nil
-}
-
-func getMonthTimeRange() (start time.Time, end time.Time) {
-	end = time.Now()
-	y, m, _ := end.Date()
-	start = time.Date(y, m, 1, 0, 0, 0, 0, end.Location())
-	return
 }
 
 func (c *Controller) getUserProcessFactor(userId string, start time.Time, end time.Time) (float64, error) {

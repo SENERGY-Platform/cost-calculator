@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,14 +37,20 @@ import (
 
 var exportTableMatch = regexp.MustCompile("userid:(.{22})_export:(.{22}).*")
 
-func (c *Controller) GetExportsTree(userId string, token string, admin bool, skipEstimation bool) (result model.CostWithChildren, err error) {
+func (c *Controller) GetExportsTree(userId string, token string, admin bool, skipEstimation bool, start *time.Time, end *time.Time) (result model.CostWithChildren, err error) {
 	timer := time.Now()
+
+	if (start == nil && end != nil) || (start != nil && end == nil) || (start != nil && !skipEstimation) {
+		return result, fmt.Errorf("must not provide only one of start or end. must not provide start and stop without skipEstimation")
+	}
+	if start == nil {
+		start, end = defaultStartEnd()
+	}
 	result = model.CostWithChildren{
 		CostWithEstimation: model.CostWithEstimation{},
 		Children:           map[string]model.CostWithChildren{},
 	}
 
-	hoursInMonthProgressed, timeInMonthRemaining, hoursInMonthProgressedStr, secondsInMonthRemainingStr, _ := getMonthTimeInfo()
 	var instances serving.Instances
 
 	t := true
@@ -84,10 +91,15 @@ func (c *Controller) GetExportsTree(userId string, token string, admin bool, ski
 		tables = append(tables, "userid:"+shortUserId+"_export:"+shortId)
 	}
 
+	durationPassed := end.Sub(*start).Round(time.Second)
+	now := time.Now() // This is fine as getting a prediction and providing start and end times is not allowed
+	endOfMonth := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC)
+	durationRemaining := endOfMonth.Sub(now)
+
 	tableSizeByteMap := map[string]float64{}
 
-	insertWithQuery := func(promQuery string, estimation bool) error {
-		resp, w, err := c.prometheus.Query(context.Background(), promQuery, time.Now())
+	insertWithQuery := func(promQuery string, estimation bool, ts time.Time) error {
+		resp, w, err := c.prometheus.Query(context.Background(), promQuery, ts)
 		if err != nil {
 			return err
 		}
@@ -136,12 +148,12 @@ func (c *Controller) GetExportsTree(userId string, token string, admin bool, ski
 				}
 
 				avgFutureTableSize := (tableSizeBytesEstimation + tableSizeBytes) / 2
-				futureCost := c.pricingModel.Storage * avgFutureTableSize * timeInMonthRemaining.Hours() / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
+				futureCost := c.pricingModel.Storage * avgFutureTableSize * durationRemaining.Hours() / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
 				child.CostWithEstimation.EstimationMonth.Storage = child.CostWithEstimation.Month.Storage + futureCost
 				result.CostWithEstimation.EstimationMonth.Storage += child.EstimationMonth.Storage
 			} else {
 				tableSizeByteMap[exportId] = tableSizeBytes
-				child.CostWithEstimation.Month.Storage = c.pricingModel.Storage * tableSizeBytes * float64(hoursInMonthProgressed) / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
+				child.CostWithEstimation.Month.Storage = c.pricingModel.Storage * tableSizeBytes * durationPassed.Hours() / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
 				result.CostWithEstimation.Month.Storage += child.Month.Storage
 			}
 			result.Children[exportId] = child
@@ -149,16 +161,16 @@ func (c *Controller) GetExportsTree(userId string, token string, admin bool, ski
 		return nil
 	}
 	// Costs in current month
-	promQuery := "avg_over_time(avg by (table) (timescale_table_size_bytes{table=~\"" + strings.Join(tables, "|") + "\"})[" + hoursInMonthProgressedStr + "h:])"
-	err = insertWithQuery(promQuery, false)
+	promQuery := "avg_over_time(avg by (table) (timescale_table_size_bytes{table=~\"" + strings.Join(tables, "|") + "\"})[" + durationPassed.String() + ":])"
+	err = insertWithQuery(promQuery, false, *end)
 	if err != nil {
 		return result, err
 	}
 
 	// Estimations
 	if !skipEstimation {
-		promQuery = "predict_linear(avg by (table) (timescale_table_size_bytes{table=~\"" + strings.Join(tables, "|") + "\"})[24h:], " + secondsInMonthRemainingStr + ")"
-		err = insertWithQuery(promQuery, true)
+		promQuery = "predict_linear(avg by (table) (timescale_table_size_bytes{table=~\"" + strings.Join(tables, "|") + "\"})[24h:], " + strconv.FormatFloat(durationRemaining.Seconds(), 'f', 0, 64) + ")"
+		err = insertWithQuery(promQuery, true, time.Now())
 		if err != nil {
 			return result, err
 		}

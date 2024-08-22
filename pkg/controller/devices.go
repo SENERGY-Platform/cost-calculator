@@ -42,16 +42,19 @@ const deviceIdPrefix = "urn:infai:ses:device:"
 	- Device cost only considers storage cost.
 */
 
-func (c *Controller) GetDevicesTree(userId string, token string, skipEstimation bool) (result model.CostWithChildren, err error) {
+func (c *Controller) GetDevicesTree(userId string, token string, skipEstimation bool, start *time.Time, end *time.Time) (result model.CostWithChildren, err error) {
 	timer := time.Now()
+
+	if (start == nil && end != nil) || (start != nil && end == nil) || (start != nil && !skipEstimation) {
+		return result, fmt.Errorf("must not provide only one of start or end. must not provide start and stop without skipEstimation")
+	}
+	if start == nil {
+		start, end = defaultStartEnd()
+	}
 	result = model.CostWithChildren{
 		CostWithEstimation: model.CostWithEstimation{},
 		Children:           map[string]model.CostWithChildren{},
 	}
-
-	hoursInMonthProgressed, timeInMonthRemaining, hoursInMonthProgressedStr, secondsInMonthRemainingStr, multiplier := getMonthTimeInfo()
-
-	start, end := getMonthTimeRange()
 
 	limit := 0
 	found := 0
@@ -120,8 +123,8 @@ func (c *Controller) GetDevicesTree(userId string, token string, skipEstimation 
 
 		tableSizeByteMap := map[string]float64{}
 
-		insertWithQuery := func(promQuery string, metricName prometheus_model.LabelName, callback func(metricValue string, value float64, child *model.CostWithChildren)) error {
-			resp, w, err := c.prometheus.Query(context.Background(), promQuery, time.Now())
+		insertWithQuery := func(promQuery string, metricName prometheus_model.LabelName, ts time.Time, callback func(metricValue string, value float64, child *model.CostWithChildren)) error {
+			resp, w, err := c.prometheus.Query(context.Background(), promQuery, ts)
 			if err != nil {
 				return err
 			}
@@ -173,10 +176,16 @@ func (c *Controller) GetDevicesTree(userId string, token string, skipEstimation 
 			}
 			return nil
 		}
+
+		durationPassed := end.Sub(*start).Round(time.Second)
+		now := time.Now() // This is fine as getting a prediction and providing start and end times is not allowed
+		endOfMonth := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC)
+		durationRemaining := endOfMonth.Sub(now)
+
 		// Costs in current month
 		timer2 := time.Now()
-		promQuery := "avg_over_time(table:timescale_table_size_bytes:avg_1h{table=~\"" + strings.Join(tables, "|") + "\"}[" + hoursInMonthProgressedStr + "h:])"
-		err = insertWithQuery(promQuery, "table", func(table string, value float64, child *model.CostWithChildren) {
+		promQuery := "avg_over_time(table:timescale_table_size_bytes:avg_1h{table=~\"" + strings.Join(tables, "|") + "\"}[" + durationPassed.String() + ":])"
+		err = insertWithQuery(promQuery, "table", *end, func(table string, value float64, child *model.CostWithChildren) {
 			tableSizeBytesEstimation := value
 			tableSizeBytes, ok := tableSizeByteMap[table]
 			if !ok {
@@ -185,7 +194,7 @@ func (c *Controller) GetDevicesTree(userId string, token string, skipEstimation 
 
 			if !skipEstimation {
 				avgFutureTableSize := (tableSizeBytesEstimation + tableSizeBytes) / 2
-				futureCost := c.pricingModel.Storage * avgFutureTableSize * timeInMonthRemaining.Hours() / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
+				futureCost := c.pricingModel.Storage * avgFutureTableSize * durationRemaining.Hours() / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
 				child.CostWithEstimation.EstimationMonth.Storage += futureCost
 				result.CostWithEstimation.EstimationMonth.Storage += futureCost
 			}
@@ -198,14 +207,14 @@ func (c *Controller) GetDevicesTree(userId string, token string, skipEstimation 
 		// Estimations
 		if !skipEstimation {
 			timer2 = time.Now()
-			promQuery = "predict_linear(table:timescale_table_size_bytes:avg_1h{table=~\"" + strings.Join(tables, "|") + "\"}[24h:], " + secondsInMonthRemainingStr + ")"
-			err = insertWithQuery(promQuery, "table", func(table string, value float64, child *model.CostWithChildren) {
+			promQuery = "predict_linear(table:timescale_table_size_bytes:avg_1h{table=~\"" + strings.Join(tables, "|") + "\"}[24h:], " + strconv.FormatFloat(durationRemaining.Seconds(), 'f', 0, 64) + ")"
+			err = insertWithQuery(promQuery, "table", time.Now(), func(table string, value float64, child *model.CostWithChildren) {
 				existingTableSizeBytes, ok := tableSizeByteMap[table]
 				if !ok {
 					existingTableSizeBytes = 0
 				}
 				tableSizeByteMap[table] = existingTableSizeBytes + value
-				additionalCost := c.pricingModel.Storage * value * float64(hoursInMonthProgressed) / 1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
+				additionalCost := c.pricingModel.Storage * value * durationPassed.Hours() / 1000000000 // cost * avg-size * hours-remaining / correction-bytes-in-gb
 				child.CostWithEstimation.Month.Storage += additionalCost
 				result.CostWithEstimation.Month.Storage += additionalCost
 				child.CostWithEstimation.EstimationMonth.Storage += additionalCost
@@ -218,8 +227,10 @@ func (c *Controller) GetDevicesTree(userId string, token string, skipEstimation 
 
 		// Requests
 		timer2 = time.Now()
-		promQuery = "round(sum_over_time(device_id:connector_source_received_device_msg_size_count:sum_increase_1h{device_id=~\"" + strings.Join(deviceIds, "|") + "\"}[" + end.Sub(start).Round(time.Second).String() + "])) != 0"
-		err = insertWithQuery(promQuery, "device_id", func(table string, value float64, child *model.CostWithChildren) {
+		nextMonth := time.Date(start.Year(), start.Month()+1, 0, 0, 0, 0, 0, time.UTC) // this is okay, because multiplier is only used in estimations, and estimations with start and stop set are not allowed
+		multiplier := 1 / (float64(end.Sub(*start)) / float64(nextMonth.Sub(*start)))
+		promQuery = "round(sum_over_time(device_id:connector_source_received_device_msg_size_count:sum_increase_1h{device_id=~\"" + strings.Join(deviceIds, "|") + "\"}[" + durationPassed.String() + "])) != 0"
+		err = insertWithQuery(promQuery, "device_id", *end, func(table string, value float64, child *model.CostWithChildren) {
 			child.Month.Requests = value
 			result.CostWithEstimation.Month.Requests += child.Month.Requests
 			if !skipEstimation {
@@ -234,20 +245,4 @@ func (c *Controller) GetDevicesTree(userId string, token string, skipEstimation 
 	}
 	c.logDebug("DevicesTree " + time.Since(timer).String())
 	return
-}
-
-func getMonthTimeInfo() (hoursInMonthProgressed int, timeInMonthRemaining time.Duration, hoursInMonthProgressedStr string, secondsInMonthRemainingStr string, multiplier float64) {
-	now := time.Now()
-	hoursInMonthProgressed += (now.Day() - 1) * 24
-	hoursInMonthProgressed += now.Hour()
-
-	startNextMonth := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC)
-	timeInMonthRemaining = startNextMonth.Sub(now)
-
-	hoursInMonthProgressedStr = strconv.Itoa(hoursInMonthProgressed)
-	secondsInMonthRemainingStr = strconv.Itoa(int(timeInMonthRemaining.Seconds()))
-
-	multiplier = 1 / (float64(hoursInMonthProgressed) / (timeInMonthRemaining.Hours() + float64(hoursInMonthProgressed)))
-
-	return hoursInMonthProgressed, timeInMonthRemaining, hoursInMonthProgressedStr, secondsInMonthRemainingStr, multiplier
 }

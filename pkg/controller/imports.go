@@ -17,28 +17,34 @@
 package controller
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 )
 
-func (c *Controller) GetImportsTree(userId string, skipEstimation bool) (tree model.CostWithChildren, err error) {
+func (c *Controller) GetImportsTree(userId string, skipEstimation bool, start *time.Time, end *time.Time) (tree model.CostWithChildren, err error) {
 	timer := time.Now()
-	filter := &podStatsFilter{
+	if (start == nil && end != nil) || (start != nil && end == nil) || (start != nil && !skipEstimation) {
+		return tree, fmt.Errorf("must not provide only one of start or end. must not provide start and stop without skipEstimation")
+	}
+	filter := &statsFilter{
 		CPU:     true,
 		RAM:     true,
 		Storage: false,
-		podFilter: podFilter{
+		filter: filter{
 			Namespace: &c.config.NamespaceImports,
 			Labels: map[string][]string{
 				"label_user": {userId},
 			},
+			Start: start,
+			End:   end,
 		},
 	}
 	if !skipEstimation {
 		filter.PredictionBasedOn = &d24h
 	}
-	stats, err := c.getPodsMonth(filter)
+	stats, err := c.getStats(filter)
 	if err != nil {
 		return
 	}

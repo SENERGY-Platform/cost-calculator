@@ -20,7 +20,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/controller"
@@ -40,15 +42,20 @@ func CostsEndpoint(router *httprouter.Router, config configuration.Config, contr
 		}
 		token := getToken(request)
 		skipEstimation := false
-		if len(params.ByName("skip_estimation")) > 0 {
-			skipEstimation, err = strconv.ParseBool(params.ByName("skip_estimation"))
+		if len(request.URL.Query().Get("skip_estimation")) > 0 {
+			skipEstimation, err = strconv.ParseBool(request.URL.Query().Get("skip_estimation"))
 			if err != nil {
 				http.Error(writer, err.Error(), http.StatusBadRequest)
 				return
 			}
 		}
+		start, end, err := parseStartEnd(request.URL.Query())
+		if err != nil {
+			http.Error(writer, err.Error(), http.StatusBadRequest)
+			return
+		}
 
-		overview, err := controller.GetCostControllers(userId, token, admin, params.ByName("costType"), skipEstimation)
+		overview, err := controller.GetCostControllers(userId, token, admin, params.ByName("costType"), skipEstimation, start, end)
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 			return
@@ -68,14 +75,19 @@ func CostsEndpoint(router *httprouter.Router, config configuration.Config, contr
 		}
 		token := getToken(request)
 		skipEstimation := false
-		if len(params.ByName("skip_estimation")) > 0 {
-			skipEstimation, err = strconv.ParseBool(params.ByName("skip_estimation"))
+		if len(request.URL.Query().Get("skip_estimation")) > 0 {
+			skipEstimation, err = strconv.ParseBool(request.URL.Query().Get("skip_estimation"))
 			if err != nil {
 				http.Error(writer, err.Error(), http.StatusBadRequest)
 				return
 			}
 		}
-		overview, err := controller.GetCostTree(userId, token, admin, skipEstimation)
+		start, end, err := parseStartEnd(request.URL.Query())
+		if err != nil {
+			http.Error(writer, err.Error(), http.StatusBadRequest)
+			return
+		}
+		overview, err := controller.GetCostTree(userId, token, admin, skipEstimation, start, end)
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 			return
@@ -90,4 +102,22 @@ func CostsEndpoint(router *httprouter.Router, config configuration.Config, contr
 	router.GET("/health", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
 		http.NoBody.WriteTo(writer)
 	})
+}
+
+func parseStartEnd(values url.Values) (start, end *time.Time, err error) {
+	if len(values.Get("start")) > 0 {
+		s, err := time.Parse(time.RFC3339, values.Get("start"))
+		if err != nil {
+			return start, end, err
+		}
+		start = &s
+	}
+	if len(values.Get("end")) > 0 {
+		s, err := time.Parse(time.RFC3339, values.Get("end"))
+		if err != nil {
+			return start, end, err
+		}
+		end = &s
+	}
+	return
 }

@@ -31,22 +31,29 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-type podStatsFilter struct {
-	podFilter
+type statsFilter struct {
+	filter
 	CPU               bool
 	RAM               bool
 	Storage           bool
-	PredictionBasedOn *time.Duration
-	Start             time.Time
-	End               time.Time
+	PredictionBasedOn *time.Duration // can only be set if podFilter.Start == nil && podFilter.End == nil
 }
 
-type podFilter struct {
+type filter struct {
 	Namespace *string
 	Labels    map[string][]string
+	Start     *time.Time // can only be set if End is also set
+	End       *time.Time // can only be set if Start is also set
 }
 
-type podStat struct {
+func checkPodFilterFullyValid(filter *filter) error {
+	if filter == nil || filter.Start == nil || filter.End == nil || filter.End.Before(*filter.Start) {
+		return fmt.Errorf("podFilter invalid")
+	}
+	return nil
+}
+
+type stat struct {
 	Labels prometheus_model.Metric
 	model.CostWithEstimation
 }
@@ -60,8 +67,20 @@ type upsertFlags struct {
 	storageEstimation bool
 }
 
-func (c *Controller) getPodsMonth(filter *podStatsFilter) (result []podStat, err error) {
-	resultMap := map[string]podStat{}
+func (c *Controller) getStats(filter *statsFilter) (result []stat, err error) {
+	if filter == nil {
+		return nil, fmt.Errorf("filter may not be nil")
+	}
+	if (filter.filter.Start == nil && filter.filter.End != nil) || (filter.filter.Start != nil && filter.filter.End == nil) {
+		return nil, fmt.Errorf("must not provide only one of start or end")
+	}
+	// ensure that checkPodFilterFullyValid(podFilter) returns nil now
+	if filter.filter.Start == nil {
+		start, end := defaultStartEnd()
+		filter.filter.Start = start
+		filter.filter.End = end
+	}
+	resultMap := map[string]stat{}
 	mux := sync.Mutex{}
 	wg := sync.WaitGroup{}
 	var superErr error
@@ -69,7 +88,7 @@ func (c *Controller) getPodsMonth(filter *podStatsFilter) (result []podStat, err
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			cpustats, err := c.getPodCPUMonth(&filter.podFilter, filter.PredictionBasedOn)
+			cpustats, err := c.getCPUStats(&filter.filter, filter.PredictionBasedOn)
 			if err != nil {
 				superErr = err
 			}
@@ -86,7 +105,7 @@ func (c *Controller) getPodsMonth(filter *podStatsFilter) (result []podStat, err
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			ramstats, err := c.getPodRAMMonth(&filter.podFilter, filter.PredictionBasedOn)
+			ramstats, err := c.getRAMStats(&filter.filter, filter.PredictionBasedOn)
 			if err != nil {
 				superErr = err
 			}
@@ -103,7 +122,7 @@ func (c *Controller) getPodsMonth(filter *podStatsFilter) (result []podStat, err
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			storageStats, err := c.getPodStorageMonth(&filter.podFilter, filter.PredictionBasedOn)
+			storageStats, err := c.getStorageStats(&filter.filter, filter.PredictionBasedOn)
 			if err != nil {
 				superErr = err
 			}
@@ -124,8 +143,11 @@ func (c *Controller) getPodsMonth(filter *podStatsFilter) (result []podStat, err
 	return
 }
 
-func (c *Controller) getPodCPUMonth(filter *podFilter, estimationBasedOn *time.Duration) (result []podStat, err error) {
-	hoursInMonthProgressed, timeInMonthRemaining, hoursInMonthProgressedStr, _, _ := getMonthTimeInfo()
+func (c *Controller) getCPUStats(filter *filter, estimationBasedOn *time.Duration) (result []stat, err error) {
+	err = checkPodFilterFullyValid(filter)
+	if err != nil {
+		return nil, err
+	}
 
 	baseQuery0 := "avg_over_time(namespace_pod_container:container_cpu_usage_seconds_total:avg_rate_1h{"
 	if filter.Namespace != nil {
@@ -139,18 +161,21 @@ func (c *Controller) getPodCPUMonth(filter *podFilter, estimationBasedOn *time.D
 	}
 	baseQuery1 += getLabelFilterStr(filter.Labels) + "}"
 
-	promQuery := baseQuery0 + "[" + hoursInMonthProgressedStr + "h:]" + baseQuery1
+	durationPassed := filter.End.Sub(*filter.Start).Round(time.Second)
+	promQuery := baseQuery0 + "[" + durationPassed.String() + ":]" + baseQuery1
 	var promQueryPred *string
 	if estimationBasedOn != nil {
 		s := baseQuery0 + "[" + estimationBasedOn.String() + ":]" + baseQuery1
 		promQueryPred = &s
 	}
-	return c.queryCpuRam(timeInMonthRemaining, hoursInMonthProgressed, &promQuery, promQueryPred, true)
+	return c.queryCpuRam(durationPassed, *filter.End, &promQuery, promQueryPred, true)
 }
 
-func (c *Controller) getPodRAMMonth(filter *podFilter, estimationBasedOn *time.Duration) (result []podStat, err error) {
-	hoursInMonthProgressed, timeInMonthRemaining, hoursInMonthProgressedStr, _, _ := getMonthTimeInfo()
-
+func (c *Controller) getRAMStats(filter *filter, estimationBasedOn *time.Duration) (result []stat, err error) {
+	err = checkPodFilterFullyValid(filter)
+	if err != nil {
+		return nil, err
+	}
 	baseQuery0 := "avg_over_time(namespace_pod_container:container_memory_working_set_bytes:avg_1h"
 	if filter.Namespace != nil {
 		baseQuery0 += "{namespace=\"" + *filter.Namespace + "\"}"
@@ -162,22 +187,22 @@ func (c *Controller) getPodRAMMonth(filter *podFilter, estimationBasedOn *time.D
 	}
 	baseQuery1 += getLabelFilterStr(filter.Labels) + "}"
 
-	promQuery := baseQuery0 + "[" + hoursInMonthProgressedStr + "h:]" + baseQuery1
+	durationPassed := filter.End.Sub(*filter.Start).Round(time.Second)
+	promQuery := baseQuery0 + "[" + durationPassed.String() + ":]" + baseQuery1
 
 	var promQueryPred *string
 	if estimationBasedOn != nil {
 		s := baseQuery0 + "[" + estimationBasedOn.String() + ":]" + baseQuery1
 		promQueryPred = &s
 	}
-	return c.queryCpuRam(timeInMonthRemaining, hoursInMonthProgressed, &promQuery, promQueryPred, false)
+	return c.queryCpuRam(durationPassed, *filter.End, &promQuery, promQueryPred, false)
 }
 
-func (c *Controller) queryCpuRam(timeInMonthRemaining time.Duration, hoursInMonthProgressed int, promQuery *string, promQueryPred *string, isCpu bool) (result []podStat, err error) {
+func (c *Controller) queryCpuRam(durationPassed time.Duration, ts time.Time, promQuery *string, promQueryPred *string, isCpu bool) (result []stat, err error) {
 	if promQuery == nil {
 		return result, fmt.Errorf("promQuery may not be null")
 	}
-
-	promResp, w, err := c.prometheus.Query(context.Background(), *promQuery, time.Now())
+	promResp, w, err := c.prometheus.Query(context.Background(), *promQuery, ts)
 	if err != nil {
 		return nil, err
 	}
@@ -187,8 +212,12 @@ func (c *Controller) queryCpuRam(timeInMonthRemaining time.Duration, hoursInMont
 	}
 
 	var estimationValues prometheus_model.Vector
+	var durationRemaining time.Duration
 	if promQueryPred != nil {
-		promResp, w, err := c.prometheus.Query(context.Background(), *promQueryPred, time.Now())
+		now := time.Now() // This is fine as getting a prediction and providing start and end times is not allowed
+		endOfMonth := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC)
+		durationRemaining = endOfMonth.Sub(now)
+		promResp, w, err := c.prometheus.Query(context.Background(), *promQueryPred, time.Now()) // predictions are always only relevant from the current point of time
 		if err != nil {
 			return nil, err
 		}
@@ -202,16 +231,16 @@ func (c *Controller) queryCpuRam(timeInMonthRemaining time.Duration, hoursInMont
 	}
 
 	for _, element := range values {
-		stat := podStat{
+		stat := stat{
 			Labels: element.Metric,
 			CostWithEstimation: model.CostWithEstimation{
 				Month: model.CostEntry{},
 			},
 		}
 		if isCpu {
-			stat.CostWithEstimation.Month.Cpu = c.pricingModel.CPU * float64(element.Value) * float64(hoursInMonthProgressed)
+			stat.CostWithEstimation.Month.Cpu = c.pricingModel.CPU * float64(element.Value) * durationPassed.Hours()
 		} else {
-			stat.CostWithEstimation.Month.Ram = c.pricingModel.RAM * float64(element.Value) * float64(hoursInMonthProgressed) / 1000000000 // cost * avg-usage * hours-progressed  / correction-bytes-in-gb
+			stat.CostWithEstimation.Month.Ram = c.pricingModel.RAM * float64(element.Value) * durationPassed.Hours() / 1000000000 // cost * avg-usage * hours-progressed  / correction-bytes-in-gb
 		}
 		if estimationValues != nil {
 			i, ok := slices.BinarySearchFunc(estimationValues, element, func(a, b *prometheus_model.Sample) int {
@@ -220,13 +249,13 @@ func (c *Controller) queryCpuRam(timeInMonthRemaining time.Duration, hoursInMont
 			stat.CostWithEstimation.EstimationMonth = model.CostEntry{}
 			if isCpu {
 				if ok {
-					stat.CostWithEstimation.EstimationMonth.Cpu = stat.CostWithEstimation.Month.Cpu + c.pricingModel.CPU*float64(estimationValues[i].Value)*timeInMonthRemaining.Hours()
+					stat.CostWithEstimation.EstimationMonth.Cpu = stat.CostWithEstimation.Month.Cpu + c.pricingModel.CPU*float64(estimationValues[i].Value)*durationRemaining.Hours()
 				} else {
 					stat.CostWithEstimation.EstimationMonth.Cpu = stat.CostWithEstimation.Month.Cpu
 				}
 			} else {
 				if ok {
-					stat.CostWithEstimation.EstimationMonth.Ram = stat.CostWithEstimation.Month.Ram + c.pricingModel.RAM*float64(estimationValues[i].Value)*timeInMonthRemaining.Hours()/1000000000
+					stat.CostWithEstimation.EstimationMonth.Ram = stat.CostWithEstimation.Month.Ram + c.pricingModel.RAM*float64(estimationValues[i].Value)*durationRemaining.Hours()/1000000000
 				} else {
 					stat.CostWithEstimation.EstimationMonth.Ram = stat.CostWithEstimation.Month.Ram
 				}
@@ -238,10 +267,13 @@ func (c *Controller) queryCpuRam(timeInMonthRemaining time.Duration, hoursInMont
 
 }
 
-func (c *Controller) getPodStorageMonth(filter *podFilter, estimationBasedOn *time.Duration) (result []podStat, err error) {
-	hoursInMonthProgressed, timeInMonthRemaining, hoursInMonthProgressedStr, _, _ := getMonthTimeInfo()
+func (c *Controller) getStorageStats(filter *filter, estimationBasedOn *time.Duration) (result []stat, err error) {
+	err = checkPodFilterFullyValid(filter)
+	if err != nil {
+		return nil, err
+	}
 
-	result = []podStat{}
+	result = []stat{}
 	promQuery := "avg_over_time"
 	baseQuery0 := "(namespace_persistentvolumeclaim:kube_persistentvolumeclaim_resource_requests_storage_bytes:avg_1h{"
 	if filter.Namespace != nil {
@@ -249,7 +281,8 @@ func (c *Controller) getPodStorageMonth(filter *podFilter, estimationBasedOn *ti
 	}
 
 	baseQuery0 += "}"
-	promQuery += baseQuery0 + "[" + hoursInMonthProgressedStr + "h:]"
+	durationPassed := filter.End.Sub(*filter.Start).Round(time.Second)
+	promQuery += baseQuery0 + "[" + durationPassed.String() + ":]"
 
 	baseQuery1 := ") * on (namespace, persistentvolumeclaim) group_right() kube_pod_spec_volumes_persistentvolumeclaims_info{container=\"kube-state-metrics\""
 	if filter.Namespace != nil {
@@ -261,7 +294,7 @@ func (c *Controller) getPodStorageMonth(filter *podFilter, estimationBasedOn *ti
 	}
 	baseQuery1 += getLabelFilterStr(filter.Labels) + "}"
 	promQuery += baseQuery1
-	promResp, w, err := c.prometheus.Query(context.Background(), promQuery, time.Now())
+	promResp, w, err := c.prometheus.Query(context.Background(), promQuery, *filter.End)
 	if err != nil {
 		return nil, err
 	}
@@ -269,28 +302,31 @@ func (c *Controller) getPodStorageMonth(filter *podFilter, estimationBasedOn *ti
 	if err != nil {
 		return nil, err
 	}
+	now := time.Now() // This is fine as getting a prediction and providing start and end times is not allowed
+	endOfMonth := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC)
+	durationRemaining := endOfMonth.Sub(now)
 
 	for _, element := range values {
 		delete(element.Metric, "container") // This is always "kube-state-metrics" and should not be considered for container costs
-		stat := podStat{
+		stat := stat{
 			Labels: element.Metric,
 			CostWithEstimation: model.CostWithEstimation{
 				Month: model.CostEntry{
-					Storage: c.pricingModel.Storage * float64(element.Value) * float64(hoursInMonthProgressed) / 1000000000, // cost * avg-size * hours-progressed / correction-bytes-in-gb
+					Storage: c.pricingModel.Storage * float64(element.Value) * durationPassed.Hours() / 1000000000, // cost * avg-size * hours-progressed / correction-bytes-in-gb
 				},
 			},
 		}
 		if estimationBasedOn != nil {
 			// Since we are calculating cost based on the PVC size and changes aren't common, just assume no changes and calculate cost based on time remaining
 			stat.CostWithEstimation.EstimationMonth = model.CostEntry{}
-			stat.CostWithEstimation.EstimationMonth.Storage = stat.CostWithEstimation.Month.Storage + c.pricingModel.Storage*float64(element.Value)*timeInMonthRemaining.Hours()/1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
+			stat.CostWithEstimation.EstimationMonth.Storage = stat.CostWithEstimation.Month.Storage + c.pricingModel.Storage*float64(element.Value)*durationRemaining.Hours()/1000000000 // cost * avg-size * hours-progressed / correction-bytes-in-gb
 		}
 		result = append(result, stat)
 	}
 	return
 }
 
-func upsertPodStats(stats []podStat, m map[string]podStat, flags *upsertFlags) error {
+func upsertPodStats(stats []stat, m map[string]stat, flags *upsertFlags) error {
 	for _, stat := range stats {
 		ns, ok := stat.Labels["namespace"]
 		if !ok {

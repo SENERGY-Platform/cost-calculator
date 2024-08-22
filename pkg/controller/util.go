@@ -27,20 +27,7 @@ import (
 	prometheus_model "github.com/prometheus/common/model"
 )
 
-const minutesInDay = 24 * 60
-
-func predict(base model.CostEntry, l24h model.CostEntry) model.CostEntry {
-	now := time.Now().UTC()
-	nextMonth := time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, time.UTC)
-	remainingMinutes := time.Until(nextMonth).Minutes()
-	return model.CostEntry{
-		Cpu:     base.Cpu + (remainingMinutes * (l24h.Cpu / minutesInDay)),
-		Ram:     base.Ram + (remainingMinutes * (l24h.Ram / minutesInDay)),
-		Storage: base.Storage + (remainingMinutes * (l24h.Storage / minutesInDay)),
-	}
-}
-
-func calcStats(data []float64) (min, max, mean, median float64) {
+func calcMinMaxMeanMedian(data []float64) (min, max, mean, median float64) {
 	if len(data) == 0 {
 		return 0, 0, 0, 0
 	}
@@ -79,7 +66,7 @@ func (c *Controller) getUsername(userId string) (username string, err error) {
 }
 
 type costWithChildrenAndStats struct {
-	stats    []podStat
+	stats    []stat
 	children map[string]costWithChildrenAndStats
 	model.CostWithEstimation
 }
@@ -95,18 +82,18 @@ func (c *costWithChildrenAndStats) toModelCostWithChildrenAndStats() (m model.Co
 	return m
 }
 
-func buildTree(stats []podStat, labels ...string) (tree model.CostWithChildren) {
+func buildTree(stats []stat, labels ...string) (tree model.CostWithChildren) {
 	t := _buildTree(stats, labels...)
 	return t.toModelCostWithChildrenAndStats()
 }
 
-func _buildTree(stats []podStat, labels ...string) (tree costWithChildrenAndStats) {
+func _buildTree(stats []stat, labels ...string) (tree costWithChildrenAndStats) {
 	// make tree
 	// put all stats in tree based on first label
 	// for all remaining labels
 	//	make tree based on that label
 	tree = costWithChildrenAndStats{
-		stats:    []podStat{},
+		stats:    []stat{},
 		children: map[string]costWithChildrenAndStats{},
 		CostWithEstimation: model.CostWithEstimation{
 			Month:           model.CostEntry{},
@@ -119,27 +106,33 @@ func _buildTree(stats []podStat, labels ...string) (tree costWithChildrenAndStat
 		}
 		return tree
 	}
-	for _, stat := range stats {
-		labelValue, ok := stat.Labels[prometheus_model.LabelName(labels[0])]
+	for _, s := range stats {
+		labelValue, ok := s.Labels[prometheus_model.LabelName(labels[0])]
 		if !ok {
 			// Element can't be grouped further, add costs on this level
-			tree.CostWithEstimation.Add(stat.CostWithEstimation)
+			tree.CostWithEstimation.Add(s.CostWithEstimation)
 			continue
 		}
 		children, ok := tree.children[string(labelValue)]
 		if !ok {
 			children = costWithChildrenAndStats{
-				stats:    []podStat{},
+				stats:    []stat{},
 				children: map[string]costWithChildrenAndStats{},
 			}
 		}
-		children.stats = append(children.stats, stat)
+		children.stats = append(children.stats, s)
 		tree.children[string(labelValue)] = children
-		tree.CostWithEstimation.Add(stat.CostWithEstimation)
+		tree.CostWithEstimation.Add(s.CostWithEstimation)
 	}
 	for k, v := range tree.children {
 		tree.children[k] = _buildTree(v.stats, labels[1:]...)
 	}
 
 	return tree
+}
+
+func defaultStartEnd() (start *time.Time, end *time.Time) {
+	e := time.Now()
+	s := time.Date(e.Year(), e.Month(), 0, 0, 0, 0, 0, time.UTC)
+	return &s, &e
 }

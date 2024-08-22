@@ -23,11 +23,11 @@ import (
 )
 
 func (c *Controller) GetImportEstimation(authorization string, userid string, importTypeId string) (estimation *model.Estimation, err error) {
-	stats, err := c.getPodsMonth(&podStatsFilter{
+	stats, err := c.getStats(&statsFilter{
 		CPU:     true,
 		RAM:     true,
 		Storage: false,
-		podFilter: podFilter{
+		filter: filter{
 			Namespace: &c.config.NamespaceImports,
 			Labels: map[string][]string{
 				"label_import_type_id": {strings.ReplaceAll(importTypeId, ":", "_")},
@@ -43,6 +43,6 @@ func (c *Controller) GetImportEstimation(authorization string, userid string, im
 	for _, stat := range stats {
 		l = append(l, stat.EstimationMonth.Cpu+stat.EstimationMonth.Ram+stat.EstimationMonth.Storage)
 	}
-	min, max, mean, median := calcStats(l)
+	min, max, mean, median := calcMinMaxMeanMedian(l)
 	return &model.Estimation{Min: min, Max: max, Mean: mean, Median: median}, nil
 }
