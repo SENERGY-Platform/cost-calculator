@@ -27,8 +27,8 @@ import (
 )
 
 type Client interface {
-	GetTree(token string, skipEstimation bool, start *time.Time, end *time.Time) (model.CostTree, error)
-	GetSubTree(token string, costType model.CostType, skipEstimation bool, start *time.Time, end *time.Time) (model.CostTree, error)
+	GetTree(token string, skipEstimation bool, start *time.Time, end *time.Time, forUser *string) (model.CostTree, error)
+	GetSubTree(token string, costType model.CostType, skipEstimation bool, start *time.Time, end *time.Time, forUser *string) (model.CostTree, error)
 	GetFlowEstimation(token string, flowId string) (model.Estimation, error)
 	GetFlowEstimations(token string, flowIds []string) ([]model.Estimation, error)
 	GetImportEstimation(token string, importTypeId string) (model.Estimation, error)

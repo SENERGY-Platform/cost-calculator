@@ -24,13 +24,16 @@ import (
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 )
 
-func (c *impl) GetTree(token string, skipEstimation bool, start *time.Time, end *time.Time) (model.CostTree, error) {
+func (c *impl) GetTree(token string, skipEstimation bool, start *time.Time, end *time.Time, forUser *string) (model.CostTree, error) {
 	url := c.baseUrl + "/tree?skip_estimation=" + strconv.FormatBool(skipEstimation)
 	if start != nil {
 		url += "&start=" + start.Format(time.RFC3339)
 	}
 	if end != nil {
 		url += "&end=" + end.Format(time.RFC3339)
+	}
+	if forUser != nil {
+		url += "&for_user=" + *forUser
 	}
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	req.Header.Set("Authorization", token)
@@ -40,13 +43,16 @@ func (c *impl) GetTree(token string, skipEstimation bool, start *time.Time, end 
 	return do[model.CostTree](req)
 }
 
-func (c *impl) GetSubTree(token string, costType model.CostType, skipEstimation bool, start *time.Time, end *time.Time) (model.CostTree, error) {
+func (c *impl) GetSubTree(token string, costType model.CostType, skipEstimation bool, start *time.Time, end *time.Time, forUser *string) (model.CostTree, error) {
 	url := c.baseUrl + "/tree/" + costType + "?skip_estimation=" + strconv.FormatBool(skipEstimation)
 	if start != nil {
 		url += "&start=" + start.Format(time.RFC3339)
 	}
 	if end != nil {
 		url += "&end=" + end.Format(time.RFC3339)
+	}
+	if forUser != nil {
+		url += "&for_user=" + *forUser
 	}
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	req.Header.Set("Authorization", token)
