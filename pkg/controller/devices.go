@@ -227,7 +227,7 @@ func (c *Controller) GetDevicesTree(userId string, token string, skipEstimation 
 
 		// Requests
 		timer2 = time.Now()
-		nextMonth := time.Date(start.Year(), start.Month()+1, 0, 0, 0, 0, 0, time.UTC) // this is okay, because multiplier is only used in estimations, and estimations with start and stop set are not allowed
+		nextMonth := time.Date(time.Now().Year(), time.Now().Month()+1, 0, 0, 0, 0, 0, time.UTC) // this is okay, because multiplier is only used in estimations, and estimations with start and stop set are not allowed
 		multiplier := 1 / (float64(end.Sub(*start)) / float64(nextMonth.Sub(*start)))
 		promQuery = "round(sum_over_time(device_id:connector_source_received_device_msg_size_count:sum_increase_1h{device_id=~\"" + strings.Join(deviceIds, "|") + "\"}[" + durationPassed.String() + "])) != 0"
 		err = insertWithQuery(promQuery, "device_id", *end, func(table string, value float64, child *model.CostWithChildren) {

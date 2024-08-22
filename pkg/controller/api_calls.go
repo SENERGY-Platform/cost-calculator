@@ -44,7 +44,7 @@ func (c *Controller) GetApiCallsTree(username string, skipEstimation bool, start
 		},
 		Children: map[string]model.CostWithChildren{},
 	}
-	nextMonth := time.Date(start.Year(), start.Month()+1, 0, 0, 0, 0, 0, time.UTC) // this is okay, because multiplier is only used in estimations, and estimations with start and stop set are not allowed
+	nextMonth := time.Date(time.Now().Year(), time.Now().Month()+1, 0, 0, 0, 0, 0, time.UTC) // this is okay, because multiplier is only used in estimations, and estimations with start and stop set are not allowed
 	multiplier := 1 / (float64(end.Sub(*start)) / float64(nextMonth.Sub(*start)))
 
 	clientPrefix := username + "_"
