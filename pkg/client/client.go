@@ -53,6 +53,9 @@ func do[T any](req *http.Request) (result T, err error) {
 		io.ReadAll(resp.Body) //read error response end ensure that resp.Body is read to EOF
 		return result, fmt.Errorf("unexpected statuscode %v", resp.StatusCode)
 	}
+	if resp.ContentLength == 0 {
+		return result, nil
+	}
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		_, _ = io.ReadAll(resp.Body) //ensure resp.Body is read to EOF
