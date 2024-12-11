@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"github.com/SENERGY-Platform/device-repository/lib/client"
 	"log"
 	"sync"
 	"time"
@@ -26,7 +27,6 @@ import (
 	serving "github.com/SENERGY-Platform/analytics-serving/client"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
-	permissions "github.com/SENERGY-Platform/permission-search/lib/client"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 )
@@ -50,7 +50,7 @@ type Controller struct {
 	flowCacheMux  sync.Mutex
 	prometheus    v1.API
 
-	permClient    permissions.Client
+	deviceRepo    client.Interface
 	servingClient *serving.Client
 
 	pricingModel *model.PricingModel
@@ -65,13 +65,12 @@ func NewController(ctx context.Context, conf configuration.Config, fatal func(er
 		return nil, err
 	}
 
-	permClient := permissions.NewClient(conf.PermissionsUrl)
 	servingClient := serving.New(conf.ServingUrl)
 
 	controller := &Controller{config: conf,
 		parsingClient: parsing_api.NewParsingApi(conf.AnalyticsParsingUrl),
 		prometheus:    v1.NewAPI(prometheusClient),
-		permClient:    permClient,
+		deviceRepo:    client.NewClient(conf.DeviceRepoUrl),
 		servingClient: servingClient,
 		pricingModel:  &pricingModel,
 		flowCache:     map[string]flowCacheEntry{}, flowCacheMux: sync.Mutex{},

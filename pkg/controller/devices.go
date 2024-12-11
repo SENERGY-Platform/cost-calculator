@@ -20,8 +20,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/SENERGY-Platform/device-repository/lib/client"
 	"log"
-	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -29,7 +29,6 @@ import (
 
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 	"github.com/SENERGY-Platform/models/go/models"
-	permissions "github.com/SENERGY-Platform/permission-search/lib/client"
 	prometheus_model "github.com/prometheus/common/model"
 )
 
@@ -56,69 +55,33 @@ func (c *Controller) GetDevicesTree(userId string, token string, skipEstimation 
 		Children:           map[string]model.CostWithChildren{},
 	}
 
-	limit := 0
-	found := 0
-	var deviceList []interface{} = []interface{}{}
-	var after *permissions.ListAfter
+	var limit int64 = 0
+	var offset int64 = 0
+	var found int64 = 0
 
+	deviceList := []models.Device{}
 	for found == limit {
 		limit = 5000
-		query := permissions.QueryMessage{
-			Resource: "devices",
-			Find: &permissions.QueryFind{
-				QueryListCommons: permissions.QueryListCommons{
-					Offset:   0,
-					Limit:    limit,
-					After:    after,
-					SortBy:   "id",
-					SortDesc: true,
-				},
-				Filter: &permissions.Selection{
-					Condition: permissions.ConditionConfig{
-						Feature:   "features.owner_id",
-						Value:     userId,
-						Operation: permissions.QueryEqualOperation,
-					},
-				},
-			}}
-		res, code, err := c.permClient.Query(token, query)
+		deviceList, err, _ = c.deviceRepo.ListDevices(token, client.DeviceListOptions{
+			Owner:  userId,
+			Limit:  limit,
+			Offset: offset,
+			SortBy: "name.asc",
+		})
 		if err != nil {
 			return result, err
 		}
-		if code != http.StatusOK {
-			return result, errors.New("unexpected upstream status code")
-		}
-		if res == nil {
-			return result, err
-		}
-		ok := false
-		deviceList, ok = res.([]interface{})
-		if !ok {
-			return result, errUnexpectedReponseFormat
-		}
-		found = len(deviceList)
-
+		found = int64(len(deviceList))
+		offset = offset + limit
 		tables := []string{}
 		deviceIds := []string{}
-		deviceId := ""
 		for _, device := range deviceList {
-			deviceMap, ok := device.(map[string]interface{})
-			if !ok {
-				return result, errUnexpectedReponseFormat
-			}
-			deviceId, ok = deviceMap["id"].(string)
-			if !ok {
-				return result, errUnexpectedReponseFormat
-			}
-			deviceIds = append(deviceIds, deviceId)
-			shortDeviceId, err := models.ShortenId(deviceId)
+			deviceIds = append(deviceIds, device.Id)
+			shortDeviceId, err := models.ShortenId(device.Id)
 			if err != nil {
 				return result, err
 			}
 			tables = append(tables, "device:"+shortDeviceId+".*")
-		}
-		after = &permissions.ListAfter{
-			Id: deviceId,
 		}
 
 		tableSizeByteMap := map[string]float64{}

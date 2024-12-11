@@ -32,7 +32,7 @@
     "pessimistic-worker": "pessimistic-worker-metrics"
   },
 
-  "permissions_url": "http://query.permissions:8080",
+  "device_repo_url": "http://api.device-repository:8080",
   "pricing_model_file_path": "pricing_model.json",
   "user_management_url": "http://api.user-management:8080",
   "serving_url": "http://api.analytics-serving:8000",

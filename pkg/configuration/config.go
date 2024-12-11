@@ -48,8 +48,7 @@ type ConfigStruct struct {
 	MarshallingCostSources map[string][]string `json:"marshalling_cost_sources"`
 	ProcessIoCostSources   map[string][]string `json:"process_io_cost_sources"`
 
-	PermissionsUrl                string `json:"permissions_url"`
-	PermissionsV2Url              string `json:"permissions_v2_url"`
+	DeviceRepoUrl                 string `json:"device_repo_url"`
 	PricingModelFilePath          string `json:"pricing_model_file_path"`
 	UserManagementUrl             string `json:"user_management_url"`
 	ServingUrl                    string `json:"serving_url"`
