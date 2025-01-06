@@ -70,7 +70,7 @@ func NewController(ctx context.Context, conf configuration.Config, fatal func(er
 	controller := &Controller{config: conf,
 		parsingClient: parsing_api.NewParsingApi(conf.AnalyticsParsingUrl),
 		prometheus:    v1.NewAPI(prometheusClient),
-		deviceRepo:    client.NewClient(conf.DeviceRepoUrl),
+		deviceRepo:    client.NewClient(conf.DeviceRepoUrl, nil),
 		servingClient: servingClient,
 		pricingModel:  &pricingModel,
 		flowCache:     map[string]flowCacheEntry{}, flowCacheMux: sync.Mutex{},

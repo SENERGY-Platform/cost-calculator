@@ -5,7 +5,7 @@ go 1.23.0
 require (
 	github.com/SENERGY-Platform/analytics-flow-engine v0.0.22
 	github.com/SENERGY-Platform/analytics-serving v0.0.15
-	github.com/SENERGY-Platform/device-repository v0.1.51
+	github.com/SENERGY-Platform/device-repository v0.1.52
 	github.com/SENERGY-Platform/models/go v0.0.0-20241007061544-de7132ae94e4
 	github.com/SENERGY-Platform/service-commons v0.0.0-20240813072046-91b3195dd8fc
 	github.com/julienschmidt/httprouter v1.3.0
