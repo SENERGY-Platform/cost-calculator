@@ -20,12 +20,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/SENERGY-Platform/device-repository/lib/client"
 	"log"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/SENERGY-Platform/device-repository/lib/client"
 
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 	"github.com/SENERGY-Platform/models/go/models"
@@ -181,6 +182,7 @@ func (c *Controller) GetDevicesTree(userId string, token string, skipEstimation 
 				child.CostWithEstimation.Month.Storage += additionalCost
 				result.CostWithEstimation.Month.Storage += additionalCost
 				child.CostWithEstimation.EstimationMonth.Storage += additionalCost
+				result.CostWithEstimation.EstimationMonth.Storage += additionalCost
 			})
 			if err != nil {
 				return result, err
