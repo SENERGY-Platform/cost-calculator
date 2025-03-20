@@ -2,6 +2,7 @@
   "api_port": "8080",
   "namespace_analytics": "analytics-pipelines",
   "namespace_imports": "import-container",
+  "namespace_kafka2mqtt": "kafka2mqtt-instances",
   "analytics_parsing_url":"https://api.senergy.infai.org/analytics/flow-parser/v2",
   "debug": false,
 
@@ -37,5 +38,5 @@
   "user_management_url": "http://api.user-management:8080",
   "serving_url": "http://api.analytics-serving:8000",
   "serving_timescale_configured_url": "senergy/timescaledb",
-  "custom_prometheus_labels": "label_user,label_flow_id,label_import_id,label_import_type_id,label_pipeline_id"
+  "custom_prometheus_labels": "label_user,label_flow_id,label_import_id,label_import_type_id,label_pipeline_id,label_kafka2mqtt"
 }

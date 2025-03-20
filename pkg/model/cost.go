@@ -47,6 +47,7 @@ const CostTypeApiCalls CostType = "API Calls"
 const CostTypeExports CostType = "Exports"
 const CostTypeDevices CostType = "Devices"
 const CostTypeProcesses CostType = "process"
+const CostTypeMQTTExports CostType = "MQTTExports"
 
 type CostControllers = map[string]CostWithEstimation
 

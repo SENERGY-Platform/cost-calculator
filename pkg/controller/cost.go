@@ -38,6 +38,8 @@ func (c *Controller) GetCostControllers(userid string, token string, admin bool,
 		return c.GetDevicesTree(userid, token, skipEstimation, start, end)
 	case model.CostTypeExports:
 		return c.GetExportsTree(userid, token, admin, skipEstimation, start, end)
+	case model.CostTypeMQTTExports:
+		return c.GetKafka2MqttTree(userid, skipEstimation, start, end)
 	default:
 		return res, errors.New("unknown costType")
 	}
@@ -134,6 +136,21 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool, skipEs
 		if exportsTree.Month.Cpu != 0 || exportsTree.Month.Ram != 0 || exportsTree.Month.Storage != 0 {
 			mux.Lock()
 			res["Exports"] = exportsTree
+			mux.Unlock()
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		mqttTree, err := c.GetKafka2MqttTree(userid, skipEstimation, start, end)
+		if err != nil {
+			superErr = err
+			return
+		}
+		if mqttTree.Month.Cpu != 0 || mqttTree.Month.Ram != 0 || mqttTree.Month.Storage != 0 {
+			mux.Lock()
+			res[model.CostTypeMQTTExports] = mqttTree
 			mux.Unlock()
 		}
 	}()

@@ -31,8 +31,9 @@ type ConfigStruct struct {
 	ApiPort             string `json:"api_port"`
 	AnalyticsParsingUrl string `json:"analytics_parsing_url"`
 
-	NamespaceAnalytics string `json:"namespace_analytics"`
-	NamespaceImports   string `json:"namespace_imports"`
+	NamespaceAnalytics  string `json:"namespace_analytics"`
+	NamespaceImports    string `json:"namespace_imports"`
+	NamespaceKafka2Mqtt string `json:"namespace_kafka2mqtt"`
 
 	Debug bool `json:"debug"`
 
