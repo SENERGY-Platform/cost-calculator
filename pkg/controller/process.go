@@ -379,3 +379,7 @@ func sampleToFloat(value prometheus_model.SampleValue) float64 {
 	}
 	return temp
 }
+
+func sampleToInt64(value prometheus_model.SampleValue) int64 {
+	return int64(value)
+}

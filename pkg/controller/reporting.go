@@ -79,20 +79,16 @@ func (c *Controller) GetReportingTree(userId string, skipEstimation bool, start 
 			Children: map[string]model.CostWithChildren{},
 		}
 
-		value := sampleToFloat(element.Value)
+		value := sampleToInt64(element.Value)
 
-		reportEntry.CostWithEstimation.Month.Storage += value * c.pricingModel.ReportingDataPoint
-		reportEntry.CostWithEstimation.Month.Requests += value
-		result.Month.Storage += value * c.pricingModel.ReportingDataPoint
-		result.Month.Requests += value
+		reportEntry.CostWithEstimation.Month.RequestedDatapoints += value
+		result.Month.RequestedDatapoints += value
 
 		if !skipEstimation {
-			estimate := math.Round(value * multiplier)
+			estimate := int64(math.Round(float64(value) * multiplier))
 			reportEntry.CostWithEstimation.EstimationMonth = model.CostEntry{}
-			reportEntry.CostWithEstimation.EstimationMonth.Storage += estimate * c.pricingModel.ReportingDataPoint
-			reportEntry.CostWithEstimation.EstimationMonth.Requests += estimate
-			result.EstimationMonth.Storage += estimate * c.pricingModel.ReportingDataPoint
-			result.EstimationMonth.Requests += estimate
+			reportEntry.CostWithEstimation.EstimationMonth.RequestedDatapoints += estimate
+			result.EstimationMonth.RequestedDatapoints += estimate
 		}
 
 		result.Children[reportId] = reportEntry

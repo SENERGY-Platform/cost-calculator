@@ -22,10 +22,11 @@ type CostWithEstimation struct {
 }
 
 type CostEntry struct {
-	Cpu      float64 `json:"cpu,omitempty"`
-	Ram      float64 `json:"ram,omitempty"`
-	Storage  float64 `json:"storage,omitempty"`
-	Requests float64 `json:"requests,omitempty"`
+	Cpu                 float64 `json:"cpu,omitempty"`
+	Ram                 float64 `json:"ram,omitempty"`
+	Storage             float64 `json:"storage,omitempty"`
+	Requests            float64 `json:"requests,omitempty"`
+	RequestedDatapoints int64   `json:"requestedDatapoints,omitempty"`
 }
 
 func (a *CostEntry) Add(b CostEntry) {
@@ -33,6 +34,7 @@ func (a *CostEntry) Add(b CostEntry) {
 	a.Ram += b.Ram
 	a.Storage += b.Storage
 	a.Requests += b.Requests
+	a.RequestedDatapoints += b.RequestedDatapoints
 }
 
 type CostOverview = map[CostType]CostWithEstimation

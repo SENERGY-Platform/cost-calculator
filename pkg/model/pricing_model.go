@@ -23,18 +23,16 @@ import (
 )
 
 type PricingModel struct {
-	CPU                float64 `json:"CPU"`
-	RAM                float64 `json:"RAM"`
-	Storage            float64 `json:"storage"`
-	ReportingDataPoint float64 `json:"reportingDataPoint"`
+	CPU     float64 `json:"CPU"`
+	RAM     float64 `json:"RAM"`
+	Storage float64 `json:"storage"`
 }
 
 type pricingModelStr struct {
-	CPU                string `json:"CPU"`
-	RAM                string `json:"RAM"`
-	Description        string `json:"description"`
-	Storage            string `json:"storage"`
-	ReportingDataPoint string `json:"reportingDataPoint"`
+	CPU         string `json:"CPU"`
+	RAM         string `json:"RAM"`
+	Description string `json:"description"`
+	Storage     string `json:"storage"`
 }
 
 func (m *pricingModelStr) toModel() (res PricingModel, err error) {
@@ -50,11 +48,6 @@ func (m *pricingModelStr) toModel() (res PricingModel, err error) {
 	}
 
 	res.Storage, err = strconv.ParseFloat(m.Storage, 64)
-	if err != nil {
-		return
-	}
-
-	res.ReportingDataPoint, err = strconv.ParseFloat(m.ReportingDataPoint, 64)
 	if err != nil {
 		return
 	}

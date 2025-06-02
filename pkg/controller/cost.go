@@ -165,7 +165,7 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool, skipEs
 			superErr = err
 			return
 		}
-		if reportingTree.Month.Cpu != 0 || reportingTree.Month.Ram != 0 || reportingTree.Month.Storage != 0 {
+		if reportingTree.Month.RequestedDatapoints != 0 {
 			mux.Lock()
 			res[model.CostTypeReporting] = reportingTree
 			mux.Unlock()
