@@ -31,7 +31,22 @@ func init() {
 }
 
 func ImportEstimationEndpoint(router *gin.Engine, config configuration.Config, controller *controller.Controller) {
-	router.GET("/estimation/import/:id", func(c *gin.Context) {
+	router.GET("/estimation/import/:id", getImportEstimationHandler(config, controller))
+	router.POST("/estimation/import", postImportEstimationHandler(config, controller))
+}
+
+// getImportEstimationHandler godoc
+// @Summary Get import cost estimation
+// @Description Returns the cost estimation for a single import type ID.
+// @Tags estimations
+// @Produce json
+// @Param id path string true "Import type ID"
+// @Success 200 {object} model.Estimation
+// @Failure 400 {string} ErrorResponse
+// @Failure 500 {string} ErrorResponse
+// @Router /estimation/import/{id} [get]
+func getImportEstimationHandler(config configuration.Config, controller *controller.Controller) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		userId, _, err := getUserId(config, c.Request)
 		if err != nil {
 			_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
@@ -44,9 +59,22 @@ func ImportEstimationEndpoint(router *gin.Engine, config configuration.Config, c
 			return
 		}
 		c.JSON(http.StatusOK, overview)
-	})
+	}
+}
 
-	router.POST("/estimation/import", func(c *gin.Context) {
+// postImportEstimationHandler godoc
+// @Summary Get import cost estimations
+// @Description Returns cost estimations for the provided list of import type IDs.
+// @Tags estimations
+// @Accept json
+// @Produce json
+// @Param ids body []string true "Import type IDs"
+// @Success 200 {array} model.Estimation
+// @Failure 400 {string} ErrorResponse
+// @Failure 500 {string} ErrorResponse
+// @Router /estimation/import [post]
+func postImportEstimationHandler(config configuration.Config, controller *controller.Controller) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		userId, _, err := getUserId(config, c.Request)
 		if err != nil {
 			_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
@@ -72,5 +100,5 @@ func ImportEstimationEndpoint(router *gin.Engine, config configuration.Config, c
 		}
 
 		c.JSON(http.StatusOK, result)
-	})
+	}
 }

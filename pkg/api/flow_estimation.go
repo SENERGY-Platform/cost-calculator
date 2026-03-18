@@ -31,7 +31,22 @@ func init() {
 }
 
 func FlowEstimationEndpoint(router *gin.Engine, config configuration.Config, controller *controller.Controller) {
-	router.GET("/estimation/flow/:id", func(c *gin.Context) {
+	router.GET("/estimation/flow/:id", getFlowEstimationHandler(config, controller))
+	router.POST("/estimation/flow", postFlowEstimationHandler(config, controller))
+}
+
+// getFlowEstimationHandler godoc
+// @Summary Get flow cost estimation
+// @Description Returns the cost estimation for a single flow ID.
+// @Tags estimations
+// @Produce json
+// @Param id path string true "Flow ID"
+// @Success 200 {array} model.Estimation
+// @Failure 400 {string} ErrorResponse
+// @Failure 500 {string} ErrorResponse
+// @Router /estimation/flow/{id} [get]
+func getFlowEstimationHandler(config configuration.Config, controller *controller.Controller) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		userId, _, err := getUserId(config, c.Request)
 		if err != nil {
 			_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
@@ -44,9 +59,22 @@ func FlowEstimationEndpoint(router *gin.Engine, config configuration.Config, con
 			return
 		}
 		c.JSON(http.StatusOK, overview)
-	})
+	}
+}
 
-	router.POST("/estimation/flow", func(c *gin.Context) {
+// postFlowEstimationHandler godoc
+// @Summary Get flow cost estimations
+// @Description Returns cost estimations for the provided list of flow IDs.
+// @Tags estimations
+// @Accept json
+// @Produce json
+// @Param ids body []string true "Flow IDs"
+// @Success 200 {array} model.Estimation
+// @Failure 400 {string} ErrorResponse
+// @Failure 500 {string} ErrorResponse
+// @Router /estimation/flow [post]
+func postFlowEstimationHandler(config configuration.Config, controller *controller.Controller) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		userId, _, err := getUserId(config, c.Request)
 		if err != nil {
 			_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
@@ -67,5 +95,5 @@ func FlowEstimationEndpoint(router *gin.Engine, config configuration.Config, con
 		}
 
 		c.JSON(http.StatusOK, result)
-	})
+	}
 }

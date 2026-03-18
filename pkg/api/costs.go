@@ -34,7 +34,27 @@ func init() {
 }
 
 func CostsEndpoint(router *gin.Engine, config configuration.Config, controller *controller.Controller) {
-	router.GET("/tree/:costType", func(c *gin.Context) {
+	router.GET("/tree/:costType", getCostControllersHandler(config, controller))
+	router.GET("/tree", getCostTreeHandler(config, controller))
+	router.GET("/health", healthHandler)
+}
+
+// getCostControllersHandler godoc
+// @Summary Get cost tree for a single cost type
+// @Description Returns the detailed cost tree for one cost type for the current user or a delegated user.
+// @Tags costs
+// @Produce json
+// @Param costType path string true "Cost type" Enums(analytics, imports, API Calls, Exports, Devices, process, MQTTExports, Reporting)
+// @Param skip_estimation query bool false "Skip estimation values in the response"
+// @Param start query string false "Start time in RFC3339 format"
+// @Param end query string false "End time in RFC3339 format"
+// @Param for_user query string false "User ID to query as admin"
+// @Success 200 {object} model.CostWithChildren
+// @Failure 400 {string} ErrorResponse
+// @Failure 500 {string} ErrorResponse
+// @Router /tree/{costType} [get]
+func getCostControllersHandler(config configuration.Config, controller *controller.Controller) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		userId, admin, err := getUserId(config, c.Request)
 		if err != nil {
 			_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
@@ -61,9 +81,24 @@ func CostsEndpoint(router *gin.Engine, config configuration.Config, controller *
 			return
 		}
 		c.JSON(http.StatusOK, overview)
-	})
+	}
+}
 
-	router.GET("/tree", func(c *gin.Context) {
+// getCostTreeHandler godoc
+// @Summary Get aggregated cost tree
+// @Description Returns the aggregated cost tree across all supported cost types for the current user or a delegated user.
+// @Tags costs
+// @Produce json
+// @Param skip_estimation query bool false "Skip estimation values in the response"
+// @Param start query string false "Start time in RFC3339 format"
+// @Param end query string false "End time in RFC3339 format"
+// @Param for_user query string false "User ID to query as admin"
+// @Success 200 {object} model.CostTree
+// @Failure 400 {string} ErrorResponse
+// @Failure 500 {string} ErrorResponse
+// @Router /tree [get]
+func getCostTreeHandler(config configuration.Config, controller *controller.Controller) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		userId, admin, err := getUserId(config, c.Request)
 		if err != nil {
 			_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
@@ -89,11 +124,17 @@ func CostsEndpoint(router *gin.Engine, config configuration.Config, controller *
 			return
 		}
 		c.JSON(http.StatusOK, overview)
-	})
+	}
+}
 
-	router.GET("/health", func(c *gin.Context) {
-		c.Status(http.StatusOK)
-	})
+// healthHandler godoc
+// @Summary Health check
+// @Description Returns a successful status when the API is ready to serve requests.
+// @Tags health
+// @Success 200
+// @Router /health [get]
+func healthHandler(c *gin.Context) {
+	c.Status(http.StatusOK)
 }
 
 func parseStartEnd(values url.Values) (start, end *time.Time, err error) {

@@ -1,0 +1,294 @@
+basePath: /
+definitions:
+  model.CostEntry:
+    properties:
+      cpu:
+        type: number
+      ram:
+        type: number
+      requestedDatapoints:
+        type: integer
+      requests:
+        type: number
+      storage:
+        type: number
+    type: object
+  model.CostTree:
+    additionalProperties:
+      $ref: '#/definitions/model.CostWithChildren'
+    type: object
+  model.CostWithChildren:
+    properties:
+      children:
+        additionalProperties:
+          $ref: '#/definitions/model.CostWithChildren'
+        type: object
+      estimation_month:
+        $ref: '#/definitions/model.CostEntry'
+      month:
+        $ref: '#/definitions/model.CostEntry'
+    type: object
+  model.Estimation:
+    properties:
+      max:
+        type: number
+      mean:
+        type: number
+      median:
+        type: number
+      min:
+        type: number
+    type: object
+info:
+  contact: {}
+  description: Provides cost overview and estimations for imports and flows.
+  title: Cost Calculator API
+paths:
+  /doc:
+    get:
+      description: Returns the generated Swagger document for this service.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Get OpenAPI document
+      tags:
+      - documentation
+  /estimation/flow:
+    post:
+      consumes:
+      - application/json
+      description: Returns cost estimations for the provided list of flow IDs.
+      parameters:
+      - description: Flow IDs
+        in: body
+        name: ids
+        required: true
+        schema:
+          items:
+            type: string
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Estimation'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Get flow cost estimations
+      tags:
+      - estimations
+  /estimation/flow/{id}:
+    get:
+      description: Returns the cost estimation for a single flow ID.
+      parameters:
+      - description: Flow ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Estimation'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Get flow cost estimation
+      tags:
+      - estimations
+  /estimation/import:
+    post:
+      consumes:
+      - application/json
+      description: Returns cost estimations for the provided list of import type IDs.
+      parameters:
+      - description: Import type IDs
+        in: body
+        name: ids
+        required: true
+        schema:
+          items:
+            type: string
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Estimation'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Get import cost estimations
+      tags:
+      - estimations
+  /estimation/import/{id}:
+    get:
+      description: Returns the cost estimation for a single import type ID.
+      parameters:
+      - description: Import type ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Estimation'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Get import cost estimation
+      tags:
+      - estimations
+  /health:
+    get:
+      description: Returns a successful status when the API is ready to serve requests.
+      responses:
+        "200":
+          description: OK
+      summary: Health check
+      tags:
+      - health
+  /tree:
+    get:
+      description: Returns the aggregated cost tree across all supported cost types
+        for the current user or a delegated user.
+      parameters:
+      - description: Skip estimation values in the response
+        in: query
+        name: skip_estimation
+        type: boolean
+      - description: Start time in RFC3339 format
+        in: query
+        name: start
+        type: string
+      - description: End time in RFC3339 format
+        in: query
+        name: end
+        type: string
+      - description: User ID to query as admin
+        in: query
+        name: for_user
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.CostTree'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Get aggregated cost tree
+      tags:
+      - costs
+  /tree/{costType}:
+    get:
+      description: Returns the detailed cost tree for one cost type for the current
+        user or a delegated user.
+      parameters:
+      - description: Cost type
+        enum:
+        - analytics
+        - imports
+        - API Calls
+        - Exports
+        - Devices
+        - process
+        - MQTTExports
+        - Reporting
+        in: path
+        name: costType
+        required: true
+        type: string
+      - description: Skip estimation values in the response
+        in: query
+        name: skip_estimation
+        type: boolean
+      - description: Start time in RFC3339 format
+        in: query
+        name: start
+        type: string
+      - description: End time in RFC3339 format
+        in: query
+        name: end
+        type: string
+      - description: User ID to query as admin
+        in: query
+        name: for_user
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.CostWithChildren'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Get cost tree for a single cost type
+      tags:
+      - costs
+securityDefinitions:
+  Bearer:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

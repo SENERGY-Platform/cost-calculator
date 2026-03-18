@@ -38,6 +38,13 @@ import (
 
 var endpoints = []func(router *gin.Engine, config configuration.Config, controller *controller.Controller){}
 
+// Start godoc
+// @title Cost Calculator API
+// @description Provides cost overview and estimations for imports and flows.
+// @BasePath /
+// @securityDefinitions.apikey Bearer
+// @in header
+// @name Authorization
 func Start(ctx context.Context, wg *sync.WaitGroup, config configuration.Config, controller *controller.Controller) (err error) {
 	log.Logger.Info("start api")
 	gin.SetMode(gin.ReleaseMode)
