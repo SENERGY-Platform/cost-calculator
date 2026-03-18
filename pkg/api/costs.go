@@ -18,7 +18,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -26,6 +25,8 @@ import (
 
 	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/controller"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/log"
+	"github.com/SENERGY-Platform/go-service-base/struct-logger/attributes"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -63,7 +64,7 @@ func CostsEndpoint(router *httprouter.Router, config configuration.Config, contr
 		writer.Header().Set("Content-Type", "application/json")
 		err = json.NewEncoder(writer).Encode(overview)
 		if err != nil {
-			fmt.Println("ERROR: " + err.Error())
+			log.Logger.Error("encode cost controller overview failed", attributes.ErrorKey, err)
 		}
 	})
 
@@ -95,7 +96,7 @@ func CostsEndpoint(router *httprouter.Router, config configuration.Config, contr
 		writer.Header().Set("Content-Type", "application/json")
 		err = json.NewEncoder(writer).Encode(overview)
 		if err != nil {
-			fmt.Println("ERROR: " + err.Error())
+			log.Logger.Error("encode cost tree failed", attributes.ErrorKey, err)
 		}
 	})
 

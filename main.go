@@ -27,10 +27,11 @@ import (
 
 	"github.com/SENERGY-Platform/cost-calculator/pkg"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
+	_log "github.com/SENERGY-Platform/cost-calculator/pkg/log"
+	"github.com/SENERGY-Platform/go-service-base/struct-logger/attributes"
 )
 
 func main() {
-
 	configLocation := flag.String("config", "config.json", "configuration file")
 	flag.Parse()
 
@@ -38,13 +39,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	_log.Init(config)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	code := 0
 	fatal := func(err error) {
 		code = 1
-		log.Println("Fatal shutdown requested!, Error: " + err.Error())
+		_log.Logger.Error("Fatal shutdown requested!", attributes.ErrorKey, err)
 		cancel()
 		go func() {
 			<-time.After(25 * time.Second)
@@ -61,7 +63,7 @@ func main() {
 		shutdown := make(chan os.Signal, 1)
 		signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
 		sig := <-shutdown
-		log.Println("received shutdown signal", sig)
+		_log.Logger.Info("received shutdown signal", "signal", sig)
 		cancel()
 	}()
 

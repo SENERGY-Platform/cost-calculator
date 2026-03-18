@@ -18,14 +18,15 @@ package controller
 
 import (
 	"context"
-	"github.com/SENERGY-Platform/device-repository/lib/client"
-	"log"
 	"sync"
 	"time"
+
+	"github.com/SENERGY-Platform/device-repository/lib/client"
 
 	parsing_api "github.com/SENERGY-Platform/analytics-flow-engine/pkg/parsing-api"
 	serving "github.com/SENERGY-Platform/analytics-serving/client"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/log"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -80,7 +81,5 @@ func NewController(ctx context.Context, conf configuration.Config, fatal func(er
 }
 
 func (c *Controller) logDebug(s string) {
-	if c.config.Debug {
-		log.Println("DEBUG: " + s)
-	}
+	log.Logger.Debug(s)
 }

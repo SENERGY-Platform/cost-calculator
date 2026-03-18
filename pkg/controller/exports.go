@@ -19,13 +19,13 @@ package controller
 import (
 	"context"
 	"fmt"
-	"log"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	serving "github.com/SENERGY-Platform/analytics-serving/client"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/log"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 	"github.com/SENERGY-Platform/models/go/models"
 	prometheus_model "github.com/prometheus/common/model"
@@ -104,7 +104,7 @@ func (c *Controller) GetExportsTree(userId string, token string, admin bool, ski
 			return err
 		}
 		if len(w) > 0 {
-			log.Printf("WARNING: prometheus warnings = %#v\n", w)
+			log.Logger.Warn("prometheus warnings", "warnings", w)
 		}
 		if resp.Type() != prometheus_model.ValVector {
 			return fmt.Errorf("unexpected prometheus response %#v", resp)

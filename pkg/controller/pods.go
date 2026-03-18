@@ -19,12 +19,12 @@ package controller
 import (
 	"context"
 	"fmt"
-	"log"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/SENERGY-Platform/cost-calculator/pkg/log"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	prometheus_model "github.com/prometheus/common/model"
@@ -374,7 +374,7 @@ func upsertPodStats(stats []stat, m map[string]stat, flags *upsertFlags) error {
 
 func validateAndGetValuesPromResponse(promResp prometheus_model.Value, w v1.Warnings) (values prometheus_model.Vector, err error) {
 	if len(w) > 0 {
-		log.Printf("WARNING: prometheus warnings = %#v\n", w)
+		log.Logger.Warn("prometheus warnings", "warnings", w)
 	}
 	if promResp.Type() != prometheus_model.ValVector {
 		return nil, fmt.Errorf("unexpected prometheus response %#v", promResp)

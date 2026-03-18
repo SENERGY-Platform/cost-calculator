@@ -18,11 +18,12 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/controller"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/log"
+	"github.com/SENERGY-Platform/go-service-base/struct-logger/attributes"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -46,7 +47,7 @@ func FlowEstimationEndpoint(router *httprouter.Router, config configuration.Conf
 		writer.Header().Set("Content-Type", "application/json")
 		err = json.NewEncoder(writer).Encode(overview)
 		if err != nil {
-			fmt.Println("ERROR: " + err.Error())
+			log.Logger.Error("encode flow estimation failed", attributes.ErrorKey, err)
 		}
 	})
 
@@ -73,7 +74,7 @@ func FlowEstimationEndpoint(router *httprouter.Router, config configuration.Conf
 		writer.Header().Set("Content-Type", "application/json")
 		err = json.NewEncoder(writer).Encode(result)
 		if err != nil {
-			fmt.Println("ERROR: " + err.Error())
+			log.Logger.Error("encode flow estimations failed", attributes.ErrorKey, err)
 		}
 	})
 }

@@ -5,6 +5,7 @@
   "namespace_kafka2mqtt": "kafka2mqtt-instances",
   "analytics_parsing_url":"https://api.senergy.infai.org/analytics/flow-parser/v2",
   "debug": false,
+  "log_handler": "json",
 
   "process_cost_sources" : {
     "process-task-worker": ["memcached.*", "optimistic-worker.*", "pessimistic-worker.*"],

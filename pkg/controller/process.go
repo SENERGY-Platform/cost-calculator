@@ -20,12 +20,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/SENERGY-Platform/cost-calculator/pkg/log"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 	prometheus_model "github.com/prometheus/common/model"
 )
@@ -332,7 +332,7 @@ func (c *Controller) getValueFromPrometheus(query string, userId string, start t
 		return 1, err
 	}
 	if len(w) > 0 {
-		log.Printf("WARNING: prometheus warnings = %#v\n", w)
+		log.Logger.Warn("prometheus warnings", "warnings", w)
 	}
 	if resp.Type() != prometheus_model.ValScalar {
 		return 1, fmt.Errorf("unexpected prometheus response %#v", resp)
@@ -353,7 +353,7 @@ func (c *Controller) getValueMapFromPrometheus(query string, userId string, star
 		return result, err
 	}
 	if len(w) > 0 {
-		log.Printf("WARNING: prometheus warnings = %#v\n", w)
+		log.Logger.Warn("prometheus warnings", "warnings", w)
 	}
 	if resp.Type() != prometheus_model.ValVector {
 		return result, fmt.Errorf("unexpected prometheus response %#v", resp)

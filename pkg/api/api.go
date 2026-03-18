@@ -19,8 +19,8 @@ package api
 import (
 	"context"
 	"errors"
-	"log"
 	"net/http"
+	"os"
 	"reflect"
 	"runtime"
 	"sync"
@@ -29,6 +29,8 @@ import (
 	"github.com/SENERGY-Platform/cost-calculator/pkg/api/util"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/controller"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/log"
+	"github.com/SENERGY-Platform/go-service-base/struct-logger/attributes"
 	"github.com/SENERGY-Platform/service-commons/pkg/jwt"
 	"github.com/julienschmidt/httprouter"
 )
@@ -36,20 +38,24 @@ import (
 var endpoints = []func(router *httprouter.Router, config configuration.Config, controller *controller.Controller){}
 
 func Start(ctx context.Context, wg *sync.WaitGroup, config configuration.Config, controller *controller.Controller) (err error) {
-	log.Println("start api")
+	log.Logger.Info("start api")
 	router := Router(config, controller)
 	server := &http.Server{Addr: ":" + config.ApiPort, Handler: router, WriteTimeout: 120 * time.Second, ReadTimeout: 2 * time.Second, ReadHeaderTimeout: 2 * time.Second}
 	wg.Add(1)
 	go func() {
-		log.Println("Listening on ", server.Addr)
+		log.Logger.Info("listening on api server", "addr", server.Addr)
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
-			log.Println("ERROR: api server error", err)
-			log.Fatal(err)
+			log.Logger.Error("api server error", attributes.ErrorKey, err)
+			os.Exit(1)
 		}
 	}()
 	go func() {
 		<-ctx.Done()
-		log.Println("DEBUG: api shutdown", server.Shutdown(context.Background()))
+		if err := server.Shutdown(context.Background()); err != nil {
+			log.Logger.Error("api shutdown failed", attributes.ErrorKey, err)
+		} else {
+			log.Logger.Debug("api shutdown")
+		}
 		wg.Done()
 	}()
 	return nil
@@ -58,10 +64,10 @@ func Start(ctx context.Context, wg *sync.WaitGroup, config configuration.Config,
 func Router(config configuration.Config, controller *controller.Controller) http.Handler {
 	router := httprouter.New()
 	for _, e := range endpoints {
-		log.Println("add endpoints: " + runtime.FuncForPC(reflect.ValueOf(e).Pointer()).Name())
+		log.Logger.Debug("add endpoint", "endpoint", runtime.FuncForPC(reflect.ValueOf(e).Pointer()).Name())
 		e(router, config, controller)
 	}
-	log.Println("add logging and cors")
+	log.Logger.Debug("add logging and cors")
 	corsHandler := util.NewCors(router)
 	return util.NewLogger(corsHandler)
 }

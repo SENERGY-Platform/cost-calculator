@@ -35,7 +35,8 @@ type ConfigStruct struct {
 	NamespaceImports    string `json:"namespace_imports"`
 	NamespaceKafka2Mqtt string `json:"namespace_kafka2mqtt"`
 
-	Debug bool `json:"debug"`
+	Debug      bool   `json:"debug"`
+	LogHandler string `json:"log_handler"`
 
 	PrometheusUrl                          string `json:"prometheus_url"`
 	UserProcessCostFractionQuery           string `json:"user_process_cost_fraction_query"`

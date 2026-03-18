@@ -23,10 +23,12 @@ import (
 	"time"
 
 	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/log"
 )
 
 func TestGetCostTree(t *testing.T) {
 	t.Skip("experiment")
+	log.InitForTest()
 	t.Log("must be manually evaluated")
 	t.Log("expects port forwarding to prometheus: kubectl port-forward -n cattle-monitoring-system service/prometheus-operated 9090:9090")
 
