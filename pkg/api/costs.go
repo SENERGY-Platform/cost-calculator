@@ -17,7 +17,7 @@
 package api
 
 import (
-	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -25,83 +25,74 @@ import (
 
 	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/controller"
-	"github.com/SENERGY-Platform/cost-calculator/pkg/log"
-	"github.com/SENERGY-Platform/go-service-base/struct-logger/attributes"
-	"github.com/julienschmidt/httprouter"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
+	"github.com/gin-gonic/gin"
 )
 
 func init() {
 	endpoints = append(endpoints, CostsEndpoint)
 }
 
-func CostsEndpoint(router *httprouter.Router, config configuration.Config, controller *controller.Controller) {
-	router.GET("/tree/:costType", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		userId, admin, err := getUserId(config, request)
+func CostsEndpoint(router *gin.Engine, config configuration.Config, controller *controller.Controller) {
+	router.GET("/tree/:costType", func(c *gin.Context) {
+		userId, admin, err := getUserId(config, c.Request)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
 			return
 		}
-		token := getToken(request)
+		token := getToken(c.Request)
 		skipEstimation := false
-		if len(request.URL.Query().Get("skip_estimation")) > 0 {
-			skipEstimation, err = strconv.ParseBool(request.URL.Query().Get("skip_estimation"))
+		if len(c.Query("skip_estimation")) > 0 {
+			skipEstimation, err = strconv.ParseBool(c.Query("skip_estimation"))
 			if err != nil {
-				http.Error(writer, err.Error(), http.StatusBadRequest)
+				_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
 				return
 			}
 		}
-		start, end, err := parseStartEnd(request.URL.Query())
+		start, end, err := parseStartEnd(c.Request.URL.Query())
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
 			return
 		}
 
-		overview, err := controller.GetCostControllers(userId, token, admin, params.ByName("costType"), skipEstimation, start, end)
+		overview, err := controller.GetCostControllers(userId, token, admin, c.Param("costType"), skipEstimation, start, end)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
+			_ = c.Error(errors.Join(model.GetError(http.StatusInternalServerError), err))
 			return
 		}
-		writer.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(writer).Encode(overview)
-		if err != nil {
-			log.Logger.Error("encode cost controller overview failed", attributes.ErrorKey, err)
-		}
+		c.JSON(http.StatusOK, overview)
 	})
 
-	router.GET("/tree", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		userId, admin, err := getUserId(config, request)
+	router.GET("/tree", func(c *gin.Context) {
+		userId, admin, err := getUserId(config, c.Request)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
 			return
 		}
-		token := getToken(request)
+		token := getToken(c.Request)
 		skipEstimation := false
-		if len(request.URL.Query().Get("skip_estimation")) > 0 {
-			skipEstimation, err = strconv.ParseBool(request.URL.Query().Get("skip_estimation"))
+		if len(c.Query("skip_estimation")) > 0 {
+			skipEstimation, err = strconv.ParseBool(c.Query("skip_estimation"))
 			if err != nil {
-				http.Error(writer, err.Error(), http.StatusBadRequest)
+				_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
 				return
 			}
 		}
-		start, end, err := parseStartEnd(request.URL.Query())
+		start, end, err := parseStartEnd(c.Request.URL.Query())
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
 			return
 		}
 		overview, err := controller.GetCostTree(userId, token, admin, skipEstimation, start, end)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
+			_ = c.Error(errors.Join(model.GetError(http.StatusInternalServerError), err))
 			return
 		}
-		writer.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(writer).Encode(overview)
-		if err != nil {
-			log.Logger.Error("encode cost tree failed", attributes.ErrorKey, err)
-		}
+		c.JSON(http.StatusOK, overview)
 	})
 
-	router.GET("/health", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		http.NoBody.WriteTo(writer)
+	router.GET("/health", func(c *gin.Context) {
+		c.Status(http.StatusOK)
 	})
 }
 

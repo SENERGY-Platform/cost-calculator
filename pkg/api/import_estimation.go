@@ -17,52 +17,46 @@
 package api
 
 import (
-	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/controller"
-	"github.com/SENERGY-Platform/cost-calculator/pkg/log"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
-	"github.com/SENERGY-Platform/go-service-base/struct-logger/attributes"
-	"github.com/julienschmidt/httprouter"
+	"github.com/gin-gonic/gin"
 )
 
 func init() {
 	endpoints = append(endpoints, ImportEstimationEndpoint)
 }
 
-func ImportEstimationEndpoint(router *httprouter.Router, config configuration.Config, controller *controller.Controller) {
-	router.GET("/estimation/import/:id", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		userId, _, err := getUserId(config, request)
+func ImportEstimationEndpoint(router *gin.Engine, config configuration.Config, controller *controller.Controller) {
+	router.GET("/estimation/import/:id", func(c *gin.Context) {
+		userId, _, err := getUserId(config, c.Request)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
 			return
 		}
-		token := getToken(request)
-		overview, err := controller.GetImportEstimation(token, userId, params.ByName("id"))
+		token := getToken(c.Request)
+		overview, err := controller.GetImportEstimation(token, userId, c.Param("id"))
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
+			_ = c.Error(errors.Join(model.GetError(http.StatusInternalServerError), err))
 			return
 		}
-		writer.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(writer).Encode(overview)
-		if err != nil {
-			log.Logger.Error("encode import estimation failed", attributes.ErrorKey, err)
-		}
+		c.JSON(http.StatusOK, overview)
 	})
 
-	router.POST("/estimation/import", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		userId, _, err := getUserId(config, request)
+	router.POST("/estimation/import", func(c *gin.Context) {
+		userId, _, err := getUserId(config, c.Request)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
 			return
 		}
-		token := getToken(request)
+		token := getToken(c.Request)
 		flowsIds := []string{}
-		err = json.NewDecoder(request.Body).Decode(&flowsIds)
+		err = c.ShouldBind(&flowsIds)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
 			return
 		}
 
@@ -71,16 +65,12 @@ func ImportEstimationEndpoint(router *httprouter.Router, config configuration.Co
 		for i, flowId := range flowsIds {
 			flowEstimation, err := controller.GetImportEstimation(token, userId, flowId)
 			if err != nil {
-				http.Error(writer, err.Error(), http.StatusInternalServerError)
+				_ = c.Error(errors.Join(model.GetError(http.StatusInternalServerError), err))
 				return
 			}
 			result[i] = flowEstimation
 		}
 
-		writer.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(writer).Encode(result)
-		if err != nil {
-			log.Logger.Error("encode import estimations failed", attributes.ErrorKey, err)
-		}
+		c.JSON(http.StatusOK, result)
 	})
 }

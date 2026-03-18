@@ -21,25 +21,41 @@ import (
 	"errors"
 	"net/http"
 	"os"
-	"reflect"
-	"runtime"
+
 	"sync"
 	"time"
 
-	"github.com/SENERGY-Platform/cost-calculator/pkg/api/util"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/controller"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/log"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
+	gin_mw "github.com/SENERGY-Platform/gin-middleware"
 	"github.com/SENERGY-Platform/go-service-base/struct-logger/attributes"
 	"github.com/SENERGY-Platform/service-commons/pkg/jwt"
-	"github.com/julienschmidt/httprouter"
+	"github.com/gin-contrib/requestid"
+	"github.com/gin-gonic/gin"
 )
 
-var endpoints = []func(router *httprouter.Router, config configuration.Config, controller *controller.Controller){}
+var endpoints = []func(router *gin.Engine, config configuration.Config, controller *controller.Controller){}
 
 func Start(ctx context.Context, wg *sync.WaitGroup, config configuration.Config, controller *controller.Controller) (err error) {
 	log.Logger.Info("start api")
-	router := Router(config, controller)
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.New()
+	router.Use(
+		gin_mw.StructLoggerHandlerWithDefaultGenerators(
+			log.Logger.With(attributes.LogRecordTypeKey, attributes.HttpAccessLogRecordTypeVal),
+			attributes.Provider,
+			[]string{},
+			nil,
+		),
+		requestid.New(requestid.WithCustomHeaderStrKey("X-Request-ID")),
+		gin_mw.ErrorHandler(model.GetStatusCode, ", "),
+		gin_mw.StructRecoveryHandler(log.Logger, gin_mw.DefaultRecoveryFunc),
+	)
+	for _, endpoint := range endpoints {
+		endpoint(router, config, controller)
+	}
 	server := &http.Server{Addr: ":" + config.ApiPort, Handler: router, WriteTimeout: 120 * time.Second, ReadTimeout: 2 * time.Second, ReadHeaderTimeout: 2 * time.Second}
 	wg.Add(1)
 	go func() {
@@ -59,17 +75,6 @@ func Start(ctx context.Context, wg *sync.WaitGroup, config configuration.Config,
 		wg.Done()
 	}()
 	return nil
-}
-
-func Router(config configuration.Config, controller *controller.Controller) http.Handler {
-	router := httprouter.New()
-	for _, e := range endpoints {
-		log.Logger.Debug("add endpoint", "endpoint", runtime.FuncForPC(reflect.ValueOf(e).Pointer()).Name())
-		e(router, config, controller)
-	}
-	log.Logger.Debug("add logging and cors")
-	corsHandler := util.NewCors(router)
-	return util.NewLogger(corsHandler)
 }
 
 func getUserId(config configuration.Config, request *http.Request) (userid string, isAdmin bool, err error) {

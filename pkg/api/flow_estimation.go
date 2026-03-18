@@ -17,64 +17,55 @@
 package api
 
 import (
-	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/SENERGY-Platform/cost-calculator/pkg/configuration"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/controller"
-	"github.com/SENERGY-Platform/cost-calculator/pkg/log"
-	"github.com/SENERGY-Platform/go-service-base/struct-logger/attributes"
-	"github.com/julienschmidt/httprouter"
+	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
+	"github.com/gin-gonic/gin"
 )
 
 func init() {
 	endpoints = append(endpoints, FlowEstimationEndpoint)
 }
 
-func FlowEstimationEndpoint(router *httprouter.Router, config configuration.Config, controller *controller.Controller) {
-	router.GET("/estimation/flow/:id", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		userId, _, err := getUserId(config, request)
+func FlowEstimationEndpoint(router *gin.Engine, config configuration.Config, controller *controller.Controller) {
+	router.GET("/estimation/flow/:id", func(c *gin.Context) {
+		userId, _, err := getUserId(config, c.Request)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
 			return
 		}
-		token := getToken(request)
-		overview, err := controller.GetFlowEstimations(token, userId, []string{params.ByName("id")})
+		token := getToken(c.Request)
+		overview, err := controller.GetFlowEstimations(token, userId, []string{c.Param("id")})
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
+			_ = c.Error(errors.Join(model.GetError(http.StatusInternalServerError), err))
 			return
 		}
-		writer.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(writer).Encode(overview)
-		if err != nil {
-			log.Logger.Error("encode flow estimation failed", attributes.ErrorKey, err)
-		}
+		c.JSON(http.StatusOK, overview)
 	})
 
-	router.POST("/estimation/flow", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		userId, _, err := getUserId(config, request)
+	router.POST("/estimation/flow", func(c *gin.Context) {
+		userId, _, err := getUserId(config, c.Request)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
 			return
 		}
-		token := getToken(request)
+		token := getToken(c.Request)
 		flowsIds := []string{}
-		err = json.NewDecoder(request.Body).Decode(&flowsIds)
+		err = c.ShouldBind(&flowsIds)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
 			return
 		}
 
 		result, err := controller.GetFlowEstimations(token, userId, flowsIds)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
+			_ = c.Error(errors.Join(model.GetError(http.StatusInternalServerError), err))
 			return
 		}
 
-		writer.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(writer).Encode(result)
-		if err != nil {
-			log.Logger.Error("encode flow estimations failed", attributes.ErrorKey, err)
-		}
+		c.JSON(http.StatusOK, result)
 	})
 }
