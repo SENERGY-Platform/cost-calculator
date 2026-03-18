@@ -17,13 +17,14 @@
 package controller
 
 import (
+	"context"
 	"strings"
 
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 )
 
-func (c *Controller) GetImportEstimation(authorization string, userid string, importTypeId string) (estimation *model.Estimation, err error) {
-	stats, err := c.getStats(&statsFilter{
+func (c *Controller) GetImportEstimation(ctx context.Context, authorization string, userid string, importTypeId string) (estimation *model.Estimation, err error) {
+	stats, err := c.getStats(ctx, &statsFilter{
 		CPU:     true,
 		RAM:     true,
 		Storage: false,

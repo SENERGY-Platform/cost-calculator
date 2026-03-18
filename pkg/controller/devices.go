@@ -42,7 +42,7 @@ const deviceIdPrefix = "urn:infai:ses:device:"
 	- Device cost only considers storage cost.
 */
 
-func (c *Controller) GetDevicesTree(userId string, token string, skipEstimation bool, start *time.Time, end *time.Time) (result model.CostWithChildren, err error) {
+func (c *Controller) GetDevicesTree(ctx context.Context, userId string, token string, skipEstimation bool, start *time.Time, end *time.Time) (result model.CostWithChildren, err error) {
 	timer := time.Now()
 
 	if (start == nil && end != nil) || (start != nil && end == nil) || (start != nil && !skipEstimation) {
@@ -88,7 +88,7 @@ func (c *Controller) GetDevicesTree(userId string, token string, skipEstimation 
 		tableSizeByteMap := map[string]float64{}
 
 		insertWithQuery := func(promQuery string, metricName prometheus_model.LabelName, ts time.Time, callback func(metricValue string, value float64, child *model.CostWithChildren)) error {
-			resp, w, err := c.prometheus.Query(context.Background(), promQuery, ts)
+			resp, w, err := c.prometheus.Query(ctx, promQuery, ts)
 			if err != nil {
 				return err
 			}

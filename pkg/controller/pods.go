@@ -67,7 +67,7 @@ type upsertFlags struct {
 	storageEstimation bool
 }
 
-func (c *Controller) getStats(filter *statsFilter) (result []stat, err error) {
+func (c *Controller) getStats(ctx context.Context, filter *statsFilter) (result []stat, err error) {
 	if filter == nil {
 		return nil, fmt.Errorf("filter may not be nil")
 	}
@@ -88,7 +88,7 @@ func (c *Controller) getStats(filter *statsFilter) (result []stat, err error) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			cpustats, err := c.getCPUStats(&filter.filter, filter.PredictionBasedOn)
+			cpustats, err := c.getCPUStats(ctx, &filter.filter, filter.PredictionBasedOn)
 			if err != nil {
 				superErr = err
 			}
@@ -105,7 +105,7 @@ func (c *Controller) getStats(filter *statsFilter) (result []stat, err error) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			ramstats, err := c.getRAMStats(&filter.filter, filter.PredictionBasedOn)
+			ramstats, err := c.getRAMStats(ctx, &filter.filter, filter.PredictionBasedOn)
 			if err != nil {
 				superErr = err
 			}
@@ -122,7 +122,7 @@ func (c *Controller) getStats(filter *statsFilter) (result []stat, err error) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			storageStats, err := c.getStorageStats(&filter.filter, filter.PredictionBasedOn)
+			storageStats, err := c.getStorageStats(ctx, &filter.filter, filter.PredictionBasedOn)
 			if err != nil {
 				superErr = err
 			}
@@ -143,7 +143,7 @@ func (c *Controller) getStats(filter *statsFilter) (result []stat, err error) {
 	return
 }
 
-func (c *Controller) getCPUStats(filter *filter, estimationBasedOn *time.Duration) (result []stat, err error) {
+func (c *Controller) getCPUStats(ctx context.Context, filter *filter, estimationBasedOn *time.Duration) (result []stat, err error) {
 	err = checkPodFilterFullyValid(filter)
 	if err != nil {
 		return nil, err
@@ -168,10 +168,10 @@ func (c *Controller) getCPUStats(filter *filter, estimationBasedOn *time.Duratio
 		s := baseQuery0 + "[" + estimationBasedOn.String() + ":]" + baseQuery1
 		promQueryPred = &s
 	}
-	return c.queryCpuRam(durationPassed, *filter.End, &promQuery, promQueryPred, true)
+	return c.queryCpuRam(ctx, durationPassed, *filter.End, &promQuery, promQueryPred, true)
 }
 
-func (c *Controller) getRAMStats(filter *filter, estimationBasedOn *time.Duration) (result []stat, err error) {
+func (c *Controller) getRAMStats(ctx context.Context, filter *filter, estimationBasedOn *time.Duration) (result []stat, err error) {
 	err = checkPodFilterFullyValid(filter)
 	if err != nil {
 		return nil, err
@@ -195,14 +195,14 @@ func (c *Controller) getRAMStats(filter *filter, estimationBasedOn *time.Duratio
 		s := baseQuery0 + "[" + estimationBasedOn.String() + ":]" + baseQuery1
 		promQueryPred = &s
 	}
-	return c.queryCpuRam(durationPassed, *filter.End, &promQuery, promQueryPred, false)
+	return c.queryCpuRam(ctx, durationPassed, *filter.End, &promQuery, promQueryPred, false)
 }
 
-func (c *Controller) queryCpuRam(durationPassed time.Duration, ts time.Time, promQuery *string, promQueryPred *string, isCpu bool) (result []stat, err error) {
+func (c *Controller) queryCpuRam(ctx context.Context, durationPassed time.Duration, ts time.Time, promQuery *string, promQueryPred *string, isCpu bool) (result []stat, err error) {
 	if promQuery == nil {
 		return result, fmt.Errorf("promQuery may not be null")
 	}
-	promResp, w, err := c.prometheus.Query(context.Background(), *promQuery, ts)
+	promResp, w, err := c.prometheus.Query(ctx, *promQuery, ts)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +217,7 @@ func (c *Controller) queryCpuRam(durationPassed time.Duration, ts time.Time, pro
 		now := time.Now() // This is fine as getting a prediction and providing start and end times is not allowed
 		endOfMonth := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC)
 		durationRemaining = endOfMonth.Sub(now)
-		promResp, w, err := c.prometheus.Query(context.Background(), *promQueryPred, time.Now()) // predictions are always only relevant from the current point of time
+		promResp, w, err := c.prometheus.Query(ctx, *promQueryPred, time.Now()) // predictions are always only relevant from the current point of time
 		if err != nil {
 			return nil, err
 		}
@@ -267,7 +267,7 @@ func (c *Controller) queryCpuRam(durationPassed time.Duration, ts time.Time, pro
 
 }
 
-func (c *Controller) getStorageStats(filter *filter, estimationBasedOn *time.Duration) (result []stat, err error) {
+func (c *Controller) getStorageStats(ctx context.Context, filter *filter, estimationBasedOn *time.Duration) (result []stat, err error) {
 	err = checkPodFilterFullyValid(filter)
 	if err != nil {
 		return nil, err
@@ -294,7 +294,7 @@ func (c *Controller) getStorageStats(filter *filter, estimationBasedOn *time.Dur
 	}
 	baseQuery1 += getLabelFilterStr(filter.Labels) + "}"
 	promQuery += baseQuery1
-	promResp, w, err := c.prometheus.Query(context.Background(), promQuery, *filter.End)
+	promResp, w, err := c.prometheus.Query(ctx, promQuery, *filter.End)
 	if err != nil {
 		return nil, err
 	}

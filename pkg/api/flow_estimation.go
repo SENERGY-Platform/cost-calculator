@@ -53,7 +53,7 @@ func getFlowEstimationHandler(config configuration.Config, controller *controlle
 			return
 		}
 		token := getToken(c.Request)
-		overview, err := controller.GetFlowEstimations(token, userId, []string{c.Param("id")})
+		overview, err := controller.GetFlowEstimations(c.Request.Context(), token, userId, []string{c.Param("id")})
 		if err != nil {
 			_ = c.Error(errors.Join(model.GetError(http.StatusInternalServerError), err))
 			return
@@ -88,7 +88,7 @@ func postFlowEstimationHandler(config configuration.Config, controller *controll
 			return
 		}
 
-		result, err := controller.GetFlowEstimations(token, userId, flowsIds)
+		result, err := controller.GetFlowEstimations(c.Request.Context(), token, userId, flowsIds)
 		if err != nil {
 			_ = c.Error(errors.Join(model.GetError(http.StatusInternalServerError), err))
 			return

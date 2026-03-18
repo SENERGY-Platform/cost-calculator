@@ -17,6 +17,7 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
@@ -24,31 +25,31 @@ import (
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 )
 
-func (c *Controller) GetCostControllers(userid string, token string, admin bool, costType model.CostType, skipEstimation bool, start *time.Time, end *time.Time) (res model.CostWithChildren, err error) {
+func (c *Controller) GetCostControllers(ctx context.Context, userid string, token string, admin bool, costType model.CostType, skipEstimation bool, start *time.Time, end *time.Time) (res model.CostWithChildren, err error) {
 	switch costType {
 	case model.CostTypeAnalytics:
-		return c.GetAnalyticsTree(userid, skipEstimation, start, end)
+		return c.GetAnalyticsTree(ctx, userid, skipEstimation, start, end)
 	case model.CostTypeImports:
-		return c.GetImportsTree(userid, skipEstimation, start, end)
+		return c.GetImportsTree(ctx, userid, skipEstimation, start, end)
 	case model.CostTypeProcesses:
-		return c.GetProcessTree(userid, skipEstimation, start, end)
+		return c.GetProcessTree(ctx, userid, skipEstimation, start, end)
 	case model.CostTypeApiCalls:
-		return c.GetApiCallsTree(userid, skipEstimation, start, end)
+		return c.GetApiCallsTree(ctx, userid, skipEstimation, start, end)
 	case model.CostTypeDevices:
-		return c.GetDevicesTree(userid, token, skipEstimation, start, end)
+		return c.GetDevicesTree(ctx, userid, token, skipEstimation, start, end)
 	case model.CostTypeExports:
-		return c.GetExportsTree(userid, token, admin, skipEstimation, start, end)
+		return c.GetExportsTree(ctx, userid, token, admin, skipEstimation, start, end)
 	case model.CostTypeMQTTExports:
-		return c.GetKafka2MqttTree(userid, skipEstimation, start, end)
+		return c.GetKafka2MqttTree(ctx, userid, skipEstimation, start, end)
 	case model.CostTypeReporting:
-		return c.GetReportingTree(userid, skipEstimation, start, end)
+		return c.GetReportingTree(ctx, userid, skipEstimation, start, end)
 	default:
 		return res, errors.New("unknown costType")
 	}
 
 }
 
-func (c *Controller) GetCostTree(userid string, token string, admin bool, skipEstimation bool, start *time.Time, end *time.Time) (res model.CostTree, err error) {
+func (c *Controller) GetCostTree(ctx context.Context, userid string, token string, admin bool, skipEstimation bool, start *time.Time, end *time.Time) (res model.CostTree, err error) {
 	res = model.CostTree{}
 	mux := sync.Mutex{}
 	wg := sync.WaitGroup{}
@@ -57,7 +58,7 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool, skipEs
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		analyticsTree, err := c.GetAnalyticsTree(userid, skipEstimation, start, end)
+		analyticsTree, err := c.GetAnalyticsTree(ctx, userid, skipEstimation, start, end)
 		if err != nil {
 			superErr = err
 			return
@@ -70,7 +71,7 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool, skipEs
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		importsTree, err := c.GetImportsTree(userid, skipEstimation, start, end)
+		importsTree, err := c.GetImportsTree(ctx, userid, skipEstimation, start, end)
 		if err != nil {
 			superErr = err
 			return
@@ -83,7 +84,7 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool, skipEs
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		processTree, err := c.GetProcessTree(userid, skipEstimation, start, end)
+		processTree, err := c.GetProcessTree(ctx, userid, skipEstimation, start, end)
 		if err != nil {
 			superErr = err
 			return
@@ -102,7 +103,7 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool, skipEs
 		if err != nil {
 			return
 		}
-		apiCallsTree, err := c.GetApiCallsTree(username, skipEstimation, start, end)
+		apiCallsTree, err := c.GetApiCallsTree(ctx, username, skipEstimation, start, end)
 		if err != nil {
 			superErr = err
 			return
@@ -115,7 +116,7 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool, skipEs
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		devicesTree, err := c.GetDevicesTree(userid, token, skipEstimation, start, end)
+		devicesTree, err := c.GetDevicesTree(ctx, userid, token, skipEstimation, start, end)
 		if err != nil {
 			superErr = err
 			return
@@ -130,7 +131,7 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool, skipEs
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		exportsTree, err := c.GetExportsTree(userid, token, admin, skipEstimation, start, end)
+		exportsTree, err := c.GetExportsTree(ctx, userid, token, admin, skipEstimation, start, end)
 		if err != nil {
 			superErr = err
 			return
@@ -145,7 +146,7 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool, skipEs
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		mqttTree, err := c.GetKafka2MqttTree(userid, skipEstimation, start, end)
+		mqttTree, err := c.GetKafka2MqttTree(ctx, userid, skipEstimation, start, end)
 		if err != nil {
 			superErr = err
 			return
@@ -160,7 +161,7 @@ func (c *Controller) GetCostTree(userid string, token string, admin bool, skipEs
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		reportingTree, err := c.GetReportingTree(userid, skipEstimation, start, end)
+		reportingTree, err := c.GetReportingTree(ctx, userid, skipEstimation, start, end)
 		if err != nil {
 			superErr = err
 			return

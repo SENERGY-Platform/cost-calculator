@@ -75,7 +75,7 @@ func getCostControllersHandler(config configuration.Config, controller *controll
 			return
 		}
 
-		overview, err := controller.GetCostControllers(userId, token, admin, c.Param("costType"), skipEstimation, start, end)
+		overview, err := controller.GetCostControllers(c.Request.Context(), userId, token, admin, c.Param("costType"), skipEstimation, start, end)
 		if err != nil {
 			_ = c.Error(errors.Join(model.GetError(http.StatusInternalServerError), err))
 			return
@@ -118,7 +118,7 @@ func getCostTreeHandler(config configuration.Config, controller *controller.Cont
 			_ = c.Error(errors.Join(model.GetError(http.StatusBadRequest), err))
 			return
 		}
-		overview, err := controller.GetCostTree(userId, token, admin, skipEstimation, start, end)
+		overview, err := controller.GetCostTree(c.Request.Context(), userId, token, admin, skipEstimation, start, end)
 		if err != nil {
 			_ = c.Error(errors.Join(model.GetError(http.StatusInternalServerError), err))
 			return

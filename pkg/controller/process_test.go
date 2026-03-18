@@ -42,16 +42,15 @@ func TestGetCostTree(t *testing.T) {
 
 	config.PrometheusUrl = "http://localhost:9090"
 
-	ctrl, err := NewController(context.Background(), config, func(err error) {
+	ctrl, err := NewController(t.Context(), config, func(err error) {
 		t.Fatal(err)
-		return
 	})
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	result, err := ctrl.GetProcessTree(userId, false, nil, nil)
+	result, err := ctrl.GetProcessTree(t.Context(), userId, false, nil, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -80,9 +79,8 @@ func TestGetUserProcessFactor(t *testing.T) {
 
 	config.PrometheusUrl = "http://localhost:9090"
 
-	ctrl, err := NewController(context.Background(), config, func(err error) {
+	ctrl, err := NewController(t.Context(), config, func(err error) {
 		t.Fatal(err)
-		return
 	})
 	if err != nil {
 		t.Error(err)
@@ -91,7 +89,7 @@ func TestGetUserProcessFactor(t *testing.T) {
 
 	start, end := defaultStartEnd()
 
-	t.Log(ctrl.getUserProcessFactor(userId, *start, *end))
+	t.Log(ctrl.getUserProcessFactor(t.Context(), userId, *start, *end))
 }
 
 func TestGetProcessDefinitionFactor(t *testing.T) {
@@ -108,9 +106,8 @@ func TestGetProcessDefinitionFactor(t *testing.T) {
 
 	config.PrometheusUrl = "http://localhost:9090"
 
-	ctrl, err := NewController(context.Background(), config, func(err error) {
+	ctrl, err := NewController(t.Context(), config, func(err error) {
 		t.Fatal(err)
-		return
 	})
 	if err != nil {
 		t.Error(err)
@@ -119,7 +116,7 @@ func TestGetProcessDefinitionFactor(t *testing.T) {
 
 	start, end := defaultStartEnd()
 
-	t.Log(ctrl.getProcessDefinitionFactors("__unallocated__/process-task-worker/deployment:pessimistic-worker", userId, *start, *end))
+	t.Log(ctrl.getProcessDefinitionFactors(t.Context(), "__unallocated__/process-task-worker/deployment:pessimistic-worker", userId, *start, *end))
 }
 
 func TestGetProcessDefinitionFactorFactor(t *testing.T) {
@@ -136,9 +133,8 @@ func TestGetProcessDefinitionFactorFactor(t *testing.T) {
 
 	config.PrometheusUrl = "http://localhost:9090"
 
-	ctrl, err := NewController(context.Background(), config, func(err error) {
+	ctrl, err := NewController(t.Context(), config, func(err error) {
 		t.Fatal(err)
-		return
 	})
 	if err != nil {
 		t.Error(err)
@@ -149,5 +145,5 @@ func TestGetProcessDefinitionFactorFactor(t *testing.T) {
 	end := time.Now()
 	start := end.Add(-24 * time.Hour)
 
-	t.Log(ctrl.getValueMapFromPrometheus("sum( increase(external_task_worker_task_command_send_count_vec[$__range]) ) by (process_definition_id)", userId, start, end))
+	t.Log(ctrl.getValueMapFromPrometheus(t.Context(), "sum( increase(external_task_worker_task_command_send_count_vec[$__range]) ) by (process_definition_id)", userId, start, end))
 }

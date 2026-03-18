@@ -53,7 +53,7 @@ func getImportEstimationHandler(config configuration.Config, controller *control
 			return
 		}
 		token := getToken(c.Request)
-		overview, err := controller.GetImportEstimation(token, userId, c.Param("id"))
+		overview, err := controller.GetImportEstimation(c.Request.Context(), token, userId, c.Param("id"))
 		if err != nil {
 			_ = c.Error(errors.Join(model.GetError(http.StatusInternalServerError), err))
 			return
@@ -91,7 +91,7 @@ func postImportEstimationHandler(config configuration.Config, controller *contro
 		result := make([]*model.Estimation, len(flowsIds))
 
 		for i, flowId := range flowsIds {
-			flowEstimation, err := controller.GetImportEstimation(token, userId, flowId)
+			flowEstimation, err := controller.GetImportEstimation(c.Request.Context(), token, userId, flowId)
 			if err != nil {
 				_ = c.Error(errors.Join(model.GetError(http.StatusInternalServerError), err))
 				return

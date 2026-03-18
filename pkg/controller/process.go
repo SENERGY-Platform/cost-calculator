@@ -30,7 +30,7 @@ import (
 	prometheus_model "github.com/prometheus/common/model"
 )
 
-func (c *Controller) GetProcessTree(userId string, skipEstimation bool, start *time.Time, end *time.Time) (processCost model.CostWithChildren, err error) {
+func (c *Controller) GetProcessTree(ctx context.Context, userId string, skipEstimation bool, start *time.Time, end *time.Time) (processCost model.CostWithChildren, err error) {
 	timer := time.Now()
 
 	if (start == nil && end != nil) || (start != nil && end == nil) || (start != nil && !skipEstimation) {
@@ -49,7 +49,7 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool, start *t
 	}
 
 	timer2 := time.Now()
-	userProcessFactor, err := c.getUserProcessFactor(userId, *start, *end)
+	userProcessFactor, err := c.getUserProcessFactor(ctx, userId, *start, *end)
 	if err != nil {
 		return processCost, err
 	}
@@ -71,7 +71,7 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool, start *t
 			if !skipEstimation {
 				filter.PredictionBasedOn = &d24h
 			}
-			stats, err := c.getStats(filter)
+			stats, err := c.getStats(ctx, filter)
 			if err != nil {
 				return processCost, err
 			}
@@ -127,7 +127,7 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool, start *t
 					processCost.EstimationMonth.Storage = processCost.EstimationMonth.Storage + child.EstimationMonth.Storage
 				}
 
-				processDefinitionFactors, err := c.getProcessDefinitionFactors(name, userId, *start, *end)
+				processDefinitionFactors, err := c.getProcessDefinitionFactors(ctx, name, userId, *start, *end)
 				if err != nil {
 					return processCost, err
 				}
@@ -174,7 +174,7 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool, start *t
 		if !skipEstimation {
 			filter.PredictionBasedOn = &d24h
 		}
-		stats, err := c.getStats(filter)
+		stats, err := c.getStats(ctx, filter)
 		if err != nil {
 			return processCost, err
 		}
@@ -183,7 +183,7 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool, start *t
 	}
 
 	timer2 = time.Now()
-	userMarshallerFactor, err := c.getUserMarshallerFactor(userId, *start, *end)
+	userMarshallerFactor, err := c.getUserMarshallerFactor(ctx, userId, *start, *end)
 	if err != nil {
 		return processCost, err
 	}
@@ -191,7 +191,7 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool, start *t
 
 	if userMarshallerFactor > 0 {
 		timer2 = time.Now()
-		processMarshallerFactor, err := c.getProcessMarshallerFactor(*start, *end)
+		processMarshallerFactor, err := c.getProcessMarshallerFactor(ctx, *start, *end)
 		if err != nil {
 			return processCost, err
 		}
@@ -228,7 +228,7 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool, start *t
 	}
 
 	timer2 = time.Now()
-	userProcessIoFactor, err := c.getUserProcessIoFactor(userId, *start, *end)
+	userProcessIoFactor, err := c.getUserProcessIoFactor(ctx, userId, *start, *end)
 	if err != nil {
 		return processCost, err
 	}
@@ -252,7 +252,7 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool, start *t
 			if !skipEstimation {
 				filter.PredictionBasedOn = &d24h
 			}
-			stats, err := c.getStats(filter)
+			stats, err := c.getStats(ctx, filter)
 			if err != nil {
 				return processCost, err
 			}
@@ -284,23 +284,23 @@ func (c *Controller) GetProcessTree(userId string, skipEstimation bool, start *t
 	return processCost, nil
 }
 
-func (c *Controller) getUserProcessFactor(userId string, start time.Time, end time.Time) (float64, error) {
-	return c.getValueFromPrometheus(c.config.UserProcessCostFractionQuery, userId, start, end)
+func (c *Controller) getUserProcessFactor(ctx context.Context, userId string, start time.Time, end time.Time) (float64, error) {
+	return c.getValueFromPrometheus(ctx, c.config.UserProcessCostFractionQuery, userId, start, end)
 }
 
-func (c *Controller) getProcessMarshallerFactor(start time.Time, end time.Time) (float64, error) {
-	return c.getValueFromPrometheus(c.config.ProcessMarshallerCostFractionQuery, "", start, end)
+func (c *Controller) getProcessMarshallerFactor(ctx context.Context, start time.Time, end time.Time) (float64, error) {
+	return c.getValueFromPrometheus(ctx, c.config.ProcessMarshallerCostFractionQuery, "", start, end)
 }
 
-func (c *Controller) getUserMarshallerFactor(userId string, start time.Time, end time.Time) (float64, error) {
-	return c.getValueFromPrometheus(c.config.UserMarshallerCostFractionQuery, userId, start, end)
+func (c *Controller) getUserMarshallerFactor(ctx context.Context, userId string, start time.Time, end time.Time) (float64, error) {
+	return c.getValueFromPrometheus(ctx, c.config.UserMarshallerCostFractionQuery, userId, start, end)
 }
 
-func (c *Controller) getUserProcessIoFactor(userId string, start time.Time, end time.Time) (float64, error) {
-	return c.getValueFromPrometheus(c.config.UserProcessIoCostFractionQuery, userId, start, end)
+func (c *Controller) getUserProcessIoFactor(ctx context.Context, userId string, start time.Time, end time.Time) (float64, error) {
+	return c.getValueFromPrometheus(ctx, c.config.UserProcessIoCostFractionQuery, userId, start, end)
 }
 
-func (c *Controller) getProcessDefinitionFactors(processCostSource string, userId string, start time.Time, end time.Time) (map[string]float64, error) {
+func (c *Controller) getProcessDefinitionFactors(ctx context.Context, processCostSource string, userId string, start time.Time, end time.Time) (map[string]float64, error) {
 	result := map[string]float64{}
 
 	instanceId, ok := c.config.ProcessCostSourceToInstanceIdPlaceholderForProcessDefCostFraction[processCostSource]
@@ -310,7 +310,7 @@ func (c *Controller) getProcessDefinitionFactors(processCostSource string, userI
 
 	query := strings.ReplaceAll(c.config.UserProcessDefinitionCostFractionQuery, "$instance_id", instanceId)
 
-	increases, err := c.getValueMapFromPrometheus(query, userId, start, end)
+	increases, err := c.getValueMapFromPrometheus(ctx, query, userId, start, end)
 	if err != nil {
 		return result, err
 	}
@@ -324,10 +324,10 @@ func (c *Controller) getProcessDefinitionFactors(processCostSource string, userI
 	return result, nil
 }
 
-func (c *Controller) getValueFromPrometheus(query string, userId string, start time.Time, end time.Time) (float64, error) {
+func (c *Controller) getValueFromPrometheus(ctx context.Context, query string, userId string, start time.Time, end time.Time) (float64, error) {
 	query = strings.ReplaceAll(query, "$user_id", userId)
 	query = strings.ReplaceAll(query, "$__range", end.Sub(start).Round(time.Second).String())
-	resp, w, err := c.prometheus.Query(context.Background(), query, end)
+	resp, w, err := c.prometheus.Query(ctx, query, end)
 	if err != nil {
 		return 1, err
 	}
@@ -344,11 +344,11 @@ func (c *Controller) getValueFromPrometheus(query string, userId string, start t
 	return sampleToFloat(value.Value), nil
 }
 
-func (c *Controller) getValueMapFromPrometheus(query string, userId string, start time.Time, end time.Time) (map[string]float64, error) {
+func (c *Controller) getValueMapFromPrometheus(ctx context.Context, query string, userId string, start time.Time, end time.Time) (map[string]float64, error) {
 	result := map[string]float64{}
 	query = strings.ReplaceAll(query, "$user_id", userId)
 	query = strings.ReplaceAll(query, "$__range", end.Sub(start).Round(time.Second).String())
-	resp, w, err := c.prometheus.Query(context.Background(), query, end)
+	resp, w, err := c.prometheus.Query(ctx, query, end)
 	if err != nil {
 		return result, err
 	}

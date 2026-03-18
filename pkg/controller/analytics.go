@@ -17,6 +17,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -25,7 +26,7 @@ import (
 
 var d24h = time.Hour * 24
 
-func (c *Controller) GetAnalyticsTree(userId string, skipEstimation bool, start *time.Time, end *time.Time) (tree model.CostWithChildren, err error) {
+func (c *Controller) GetAnalyticsTree(ctx context.Context, userId string, skipEstimation bool, start *time.Time, end *time.Time) (tree model.CostWithChildren, err error) {
 	timer := time.Now()
 
 	if (start == nil && end != nil) || (start != nil && end == nil) || (start != nil && !skipEstimation) {
@@ -47,7 +48,7 @@ func (c *Controller) GetAnalyticsTree(userId string, skipEstimation bool, start 
 	if !skipEstimation {
 		filter.PredictionBasedOn = &d24h
 	}
-	stats, err := c.getStats(filter)
+	stats, err := c.getStats(ctx, filter)
 	if err != nil {
 		return
 	}

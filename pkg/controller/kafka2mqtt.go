@@ -17,6 +17,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -24,7 +25,7 @@ import (
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 )
 
-func (c *Controller) GetKafka2MqttTree(userId string, skipEstimation bool, start *time.Time, end *time.Time) (tree model.CostWithChildren, err error) {
+func (c *Controller) GetKafka2MqttTree(ctx context.Context, userId string, skipEstimation bool, start *time.Time, end *time.Time) (tree model.CostWithChildren, err error) {
 	timer := time.Now()
 	if (start == nil && end != nil) || (start != nil && end == nil) || (start != nil && !skipEstimation) {
 		return tree, fmt.Errorf("must not provide only one of start or end. must not provide start and stop without skipEstimation")
@@ -45,7 +46,7 @@ func (c *Controller) GetKafka2MqttTree(userId string, skipEstimation bool, start
 	if !skipEstimation {
 		filter.PredictionBasedOn = &d24h
 	}
-	stats, err := c.getStats(filter)
+	stats, err := c.getStats(ctx, filter)
 	if err != nil {
 		return
 	}

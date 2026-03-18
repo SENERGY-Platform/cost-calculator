@@ -27,7 +27,7 @@ import (
 	prometheus_model "github.com/prometheus/common/model"
 )
 
-func (c *Controller) GetReportingTree(userId string, skipEstimation bool, start *time.Time, end *time.Time) (result model.CostWithChildren, err error) {
+func (c *Controller) GetReportingTree(ctx context.Context, userId string, skipEstimation bool, start *time.Time, end *time.Time) (result model.CostWithChildren, err error) {
 	timer := time.Now()
 
 	if (start == nil && end != nil) || (start != nil && end == nil) || (start != nil && !skipEstimation) {
@@ -48,7 +48,7 @@ func (c *Controller) GetReportingTree(userId string, skipEstimation bool, start 
 
 	query := "round(sum by (report_id) (increase(reporting_queried_datapoints_tsdb_total{user_id=\"" + userId + "\"}[" + end.Sub(*start).Round(time.Second).String() + "]))) != 0"
 
-	resp, w, err := c.prometheus.Query(context.Background(), query, *end)
+	resp, w, err := c.prometheus.Query(ctx, query, *end)
 	if err != nil {
 		return result, err
 	}

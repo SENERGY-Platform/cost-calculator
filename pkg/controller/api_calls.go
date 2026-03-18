@@ -28,7 +28,7 @@ import (
 	prometheus_model "github.com/prometheus/common/model"
 )
 
-func (c *Controller) GetApiCallsTree(username string, skipEstimation bool, start *time.Time, end *time.Time) (result model.CostWithChildren, err error) {
+func (c *Controller) GetApiCallsTree(ctx context.Context, username string, skipEstimation bool, start *time.Time, end *time.Time) (result model.CostWithChildren, err error) {
 	timer := time.Now()
 
 	if (start == nil && end != nil) || (start != nil && end == nil) || (start != nil && !skipEstimation) {
@@ -50,7 +50,7 @@ func (c *Controller) GetApiCallsTree(username string, skipEstimation bool, start
 	clientPrefix := username + "_"
 	query := "round(sum by (exported_service, consumer) (increase(kong_http_requests_total{consumer=~\"" + clientPrefix + ".*\"}[" + end.Sub(*start).Round(time.Second).String() + "]))) != 0"
 
-	resp, w, err := c.prometheus.Query(context.Background(), query, *end)
+	resp, w, err := c.prometheus.Query(ctx, query, *end)
 	if err != nil {
 		return result, err
 	}

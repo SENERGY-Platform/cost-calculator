@@ -17,13 +17,14 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 )
 
-func (c *Controller) GetImportsTree(userId string, skipEstimation bool, start *time.Time, end *time.Time) (tree model.CostWithChildren, err error) {
+func (c *Controller) GetImportsTree(ctx context.Context, userId string, skipEstimation bool, start *time.Time, end *time.Time) (tree model.CostWithChildren, err error) {
 	timer := time.Now()
 	if (start == nil && end != nil) || (start != nil && end == nil) || (start != nil && !skipEstimation) {
 		return tree, fmt.Errorf("must not provide only one of start or end. must not provide start and stop without skipEstimation")
@@ -44,7 +45,7 @@ func (c *Controller) GetImportsTree(userId string, skipEstimation bool, start *t
 	if !skipEstimation {
 		filter.PredictionBasedOn = &d24h
 	}
-	stats, err := c.getStats(filter)
+	stats, err := c.getStats(ctx, filter)
 	if err != nil {
 		return
 	}

@@ -17,6 +17,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -27,7 +28,7 @@ import (
 
 const cacheValid = 1 * time.Hour
 
-func (c *Controller) GetFlowEstimations(authorization string, userid string, flowIds []string) (estimations []*model.Estimation, err error) {
+func (c *Controller) GetFlowEstimations(ctx context.Context, authorization string, userid string, flowIds []string) (estimations []*model.Estimation, err error) {
 	flows := []parsing_api.Pipeline{}
 	allFlowsCached := true
 	c.flowCacheMux.Lock()
@@ -55,7 +56,7 @@ func (c *Controller) GetFlowEstimations(authorization string, userid string, flo
 	}
 	c.flowCacheMux.Unlock()
 
-	stats, err := c.getStats(&statsFilter{
+	stats, err := c.getStats(ctx, &statsFilter{
 		CPU:     true,
 		RAM:     true,
 		Storage: true,

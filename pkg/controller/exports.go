@@ -37,7 +37,7 @@ import (
 
 var exportTableMatch = regexp.MustCompile("userid:(.{22})_export:(.{22}).*")
 
-func (c *Controller) GetExportsTree(userId string, token string, admin bool, skipEstimation bool, start *time.Time, end *time.Time) (result model.CostWithChildren, err error) {
+func (c *Controller) GetExportsTree(ctx context.Context, userId string, token string, admin bool, skipEstimation bool, start *time.Time, end *time.Time) (result model.CostWithChildren, err error) {
 	timer := time.Now()
 
 	if (start == nil && end != nil) || (start != nil && end == nil) || (start != nil && !skipEstimation) {
@@ -99,7 +99,7 @@ func (c *Controller) GetExportsTree(userId string, token string, admin bool, ski
 	tableSizeByteMap := map[string]float64{}
 
 	insertWithQuery := func(promQuery string, estimation bool, ts time.Time) error {
-		resp, w, err := c.prometheus.Query(context.Background(), promQuery, ts)
+		resp, w, err := c.prometheus.Query(ctx, promQuery, ts)
 		if err != nil {
 			return err
 		}
