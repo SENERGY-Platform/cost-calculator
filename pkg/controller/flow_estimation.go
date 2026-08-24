@@ -22,14 +22,14 @@ import (
 	"strings"
 	"time"
 
-	parsing_api "github.com/SENERGY-Platform/analytics-flow-engine/pkg/parsing-api"
+	parser "github.com/SENERGY-Platform/analytics-parser/lib"
 	"github.com/SENERGY-Platform/cost-calculator/pkg/model"
 )
 
 const cacheValid = 1 * time.Hour
 
 func (c *Controller) GetFlowEstimations(ctx context.Context, authorization string, userid string, flowIds []string) (estimations []*model.Estimation, err error) {
-	flows := []parsing_api.Pipeline{}
+	flows := []parser.Pipeline{}
 	allFlowsCached := true
 	c.flowCacheMux.Lock()
 	for _, flowId := range flowIds {
