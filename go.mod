@@ -7,7 +7,7 @@ require (
 	github.com/SENERGY-Platform/analytics-parser v0.0.23
 	github.com/SENERGY-Platform/analytics-serving v0.0.39
 	github.com/SENERGY-Platform/device-repository v0.3.2
-	github.com/SENERGY-Platform/gin-middleware v0.14.1
+	github.com/SENERGY-Platform/gin-middleware v0.14.2
 	github.com/SENERGY-Platform/models/go v0.0.0-20260710115411-5b8e00d6e038
 	github.com/SENERGY-Platform/service-commons v0.0.0-20260821114734-3e4578ac2358
 	github.com/gin-contrib/requestid v1.0.6
