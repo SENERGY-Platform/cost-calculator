@@ -128,7 +128,14 @@ func HandleEnvironmentVars(config Config) {
 				}
 				configValue.FieldByName(fieldName).Set(reflect.ValueOf(val))
 			}
-			if configValue.FieldByName(fieldName).Kind() == reflect.Map {
+			if configValue.FieldByName(fieldName).Kind() == reflect.Map && strings.HasPrefix(strings.TrimSpace(envValue), "{") {
+				// JSON in the type of the field, e.g. {"ns": ["pod.*"]} for map[string][]string
+				value := reflect.New(configValue.FieldByName(fieldName).Type())
+				if err := json.Unmarshal([]byte(envValue), value.Interface()); err != nil {
+					log.Fatal("invalid JSON in environment variable ", envName, ": ", err)
+				}
+				configValue.FieldByName(fieldName).Set(value.Elem())
+			} else if configValue.FieldByName(fieldName).Kind() == reflect.Map {
 				value := map[string]string{}
 				for _, element := range strings.Split(envValue, ",") {
 					keyVal := strings.Split(element, ":")
